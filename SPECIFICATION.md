@@ -205,7 +205,7 @@ final readonly class Canonicalizer
      * @param list<\Dom\Element> $excluding strict descendants of $apex left out, as the enveloped signature transform leaves out ds:Signature
      * @throws CanonicalizationFailed when libxml returns false or an empty string
      * @throws ForeignNode when $apex does not belong to a document of the brick
-     * @throws \InvalidArgumentException when $apex is not connected to its document, when an excluded element is not a strict descendant of $apex, or when $inclusiveNamespaces is not empty for an inclusive method
+     * @throws \InvalidArgumentException when $apex is not connected to its document, when an excluded element is not a strict descendant of $apex or is listed twice, or when $inclusiveNamespaces is not empty for an inclusive method
      */
     public function canonicalize(
         \Dom\Element $apex,
@@ -337,7 +337,7 @@ A document created by `DocumentFactory` has an empty index: what a consumer buil
 `Canonicalizer::canonicalize()` is the only place in the stack that calls `C14N()`, and it proceeds so:
 
 1. `Document::owning($apex)`, which throws `ForeignNode` for a node of a document the brick did not produce (I-4). An apex that is no longer connected to its document (`isConnected` false: removal from a parent does not clear `ownerDocument`) is a programming error, `\InvalidArgumentException`, checked before anything is detached; PHP itself refuses to canonicalize a detached node.
-2. Each element of `$excluding` is a strict descendant of `$apex` (`\InvalidArgumentException` otherwise). Each is detached with `removeChild()`, its parent and next sibling remembered.
+2. Each element of `$excluding` is a strict descendant of `$apex`, listed once (`\InvalidArgumentException` otherwise, before anything is detached: an element listed twice would be detached twice). Each is detached with `removeChild()`, its parent and next sibling remembered.
 3. `$apex->C14N($method->isExclusive(), $method->withComments(), null, $prefixes)`, where `$prefixes` is the list of `$inclusiveNamespaces`, or `null` when that list is empty: an empty array in inclusive mode makes PHP raise the notice "Inclusive namespace prefixes only allowed in exclusive mode" (measured), and a notice is a failure in the suite. The call sits in a `try` whose `finally` reinserts every detached element with `insertBefore()` at its remembered position, in reverse order of detachment. The document the caller holds is mutated for the duration of the call and is identical before and after it, whether the call succeeds or fails.
 4. A `false` return, which libxml gives for a relative namespace URI or an entity reference node among other things, throws `CanonicalizationFailed`; libxml's error code is attached when there is one, never its message: the template of the relative namespace error is `Relative namespace UR is invalid here : %s`, the URI itself, and the call runs under the same saved, set and restored `libxml_use_internal_errors(true)` as the loader. An empty string, which libxml gives for an empty node set, is refused by the constructor of `CanonicalXml`.
 
