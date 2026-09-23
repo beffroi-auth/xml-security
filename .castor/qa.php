@@ -26,6 +26,7 @@ const INFECTION_STRICT_FILES = [
     'src/Text.php',
     'src/Children.php',
     'src/CanonicalXml.php',
+    'src/Serializer.php',
 ];
 
 /**

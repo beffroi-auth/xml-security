@@ -81,6 +81,10 @@ What a verifier hands to its consumer is the re-parse of the canonical bytes it 
 gives one root, the signed element with every namespace and inherited `xml:*` attribute the form rendered, and no
 wrapper, no sibling, no second assertion.
 
+What a signer hashes is the same thing seen from the other side: serialize what you built, load the bytes, canonicalize
+the loaded element. What is hashed is what the peer will parse, whatever `C14N()` renders on a built tree; the
+declaration the factory adds and the refusals below are the defence in depth behind that rule.
+
 ## Writing
 
 ```php
@@ -92,11 +96,13 @@ $root->setAttributeNS(null, 'ID', '_' . bin2hex(random_bytes(16)));   // build w
 $bytes = new Serializer()->serialize($document);   // <?xml version="1.0" encoding="UTF-8"?>, a line feed, the root
 ```
 
-Nothing pretty-prints. Build what you sign with one prefix per namespace, no carriage return in a text node, no
-adjacent CDATA sections and no ampersand in a namespace name, and forward a document you loaded as you received it
-instead of re-serializing it: PHP's `saveXml()` drops a prefix bound to the in-scope default namespace, merges
-adjacent CDATA sections and escapes an ampersand of a namespace name twice, and a parser normalises a carriage
-return away (specification, section 6.5).
+Nothing pretty-prints. The factory declares the namespace of the root; give every element you build a prefix, or
+declare the default namespace it introduces with an `xmlns` attribute on the element itself: PHP's `C14N()` renders
+only the declarations that exist as attributes, and the canonicalizer refuses what you forgot rather than sign a
+form without its namespace. The serializer refuses what would not survive `saveXml()` then a parser: a carriage
+return in a text, CDATA, comment or processing instruction node, a prefix bound to the in-scope default namespace,
+a CDATA section holding `]]>`, an ampersand in a namespace name (specification, section 6.5). Forward a document you
+loaded as you received it instead of re-serializing it.
 
 ## The invariants
 

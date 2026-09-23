@@ -10,7 +10,12 @@
         "text": ".ci-tools/infection.txt"
     },
     "mutators": {
-        "@default": true
+        "@default": true,
+        "Throw_": {
+            "ignoreSourceCodeByRegex": [
+                "throw new SerializationFailed\\('libxml could not serialize the document \\(I-15\\)\\.'\\);"
+            ]
+        }
     },
     "phpUnit": {
         "configDir": ".ci-tools"

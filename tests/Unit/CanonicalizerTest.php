@@ -33,6 +33,8 @@ use PHPUnit\Framework\TestCase;
  */
 final class CanonicalizerTest extends TestCase
 {
+    private const string XMLNS = 'http://www.w3.org/2000/xmlns/';
+
     private Canonicalizer $canonicalizer;
 
     private Serializer $serializer;
@@ -61,14 +63,19 @@ final class CanonicalizerTest extends TestCase
         // Given
         $document = Loaded::fixture($fixture);
         $apex = $apexName === null ? $document->root() : Nodes::childNamed($document->root(), $apexName);
-        $before = $this->serializer->serialize($document);
+        // the witness that the document is untouched afterwards: the §3.4 vector carries a carriage return, which
+        // the serializer refuses (section 6.5), so the witness is the canonical form with comments of the root
+        $before = $this->canonicalizer->canonicalize($document->root(), CanonicalizationMethod::InclusiveWithComments);
 
         // When
         $canonical = $this->canonicalizer->canonicalize($apex, $method, new InclusiveNamespaces($prefixes));
 
         // Then
         static::assertSame(Fixtures::bytes($expected), $canonical->bytes);
-        static::assertSame($before, $this->serializer->serialize($document));
+        static::assertSame(
+            $before->bytes,
+            $this->canonicalizer->canonicalize($document->root(), CanonicalizationMethod::InclusiveWithComments)->bytes,
+        );
     }
 
     /**
@@ -293,7 +300,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * Section 6.3 step 3: the excluded elements are reinserted at their position whatever the order they were
+     * Section 6.3 step 4: the excluded elements are reinserted at their position whatever the order they were
      * listed in, two adjacent siblings included.
      */
     #[Test]
@@ -318,7 +325,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * Section 6.3 step 2: a nested exclusion, the inner one listed first, is detached and put back inside its
+     * Section 6.3 step 3: a nested exclusion, the inner one listed first, is detached and put back inside its
      * parent, itself detached and put back.
      */
     #[Test]
@@ -466,7 +473,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * §9.2 row 28, section 6.3 step 2: an excluded element that is not a strict descendant of the apex.
+     * §9.2 row 28, section 6.3 step 3: an excluded element that is not a strict descendant of the apex.
      */
     #[Test]
     #[DataProvider('provideNonDescendants')]
@@ -536,7 +543,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * Section 6.3 step 2: an element listed twice would be detached twice; refused before anything is detached.
+     * Section 6.3 step 3: an element listed twice would be detached twice; refused before anything is detached.
      */
     #[Test]
     public function itRefusesAnElementExcludedTwice(): void
@@ -588,7 +595,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * Section 6.3 step 3: an empty prefix list with an exclusive method renders the visibly utilised namespaces.
+     * Section 6.3 step 4: an empty prefix list with an exclusive method renders the visibly utilised namespaces.
      */
     #[Test]
     public function itAcceptsAnEmptyPrefixListWithAnExclusiveMethod(): void
@@ -609,7 +616,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * Section 6.3 step 4: libxml's internal-errors mode is restored after a canonicalization, on the success path.
+     * Section 6.3 step 5: libxml's internal-errors mode is restored after a canonicalization, on the success path.
      */
     #[Test]
     public function itRestoresAnInternalErrorsModeOfFalseAfterACanonicalization(): void
@@ -627,7 +634,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * Section 6.3 step 4: the mode is restored and the buffer emptied after a refusal, the diagnostic of libxml
+     * Section 6.3 step 5: the mode is restored and the buffer emptied after a refusal, the diagnostic of libxml
      * not left behind.
      */
     #[Test]
@@ -701,5 +708,134 @@ final class CanonicalizerTest extends TestCase
         }
 
         return $signatures;
+    }
+
+    /**
+     * §9.3 row 19, section 6.3 step 2: a built element without a prefix whose namespace no xmlns attribute in
+     * scope declares; C14N() would render it without a declaration (measured, section 13).
+     */
+    #[Test]
+    public function itRefusesABuiltElementWithoutAPrefixWhoseNamespaceNoDeclarationCovers(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $root->appendChild($xml->createElementNS('urn:b', 'b'));
+
+        // Then
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('An element without a prefix has no xmlns attribute in scope that declares its namespace (section 6.3).');
+
+        // When
+        $this->canonicalizer->canonicalize($root, CanonicalizationMethod::Exclusive);
+    }
+
+    /**
+     * §9.3 row 19, section 6.3 step 2: a built child in no namespace under a default namespace, without its own
+     * xmlns=""; C14N() would render it inside the default namespace (measured, section 13).
+     */
+    #[Test]
+    public function itRefusesABuiltChildInNoNamespaceUnderADefaultNamespaceWithoutItsOwnEmptyDeclaration(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $root->appendChild($xml->createElementNS(null, 'c'));
+
+        // Then
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('An element without a prefix has no xmlns attribute in scope that declares its namespace (section 6.3).');
+
+        // When
+        $this->canonicalizer->canonicalize($root, CanonicalizationMethod::Inclusive);
+    }
+
+    /**
+     * §9.3 row 19, section 6.3 step 2: the refusal comes before anything is detached, so the excluded element is
+     * still in place afterwards.
+     */
+    #[Test]
+    public function itRefusesAnUndeclaredDefaultNamespaceBeforeDetachingAnything(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $excluded = $xml->createElementNS('urn:ds', 'ds:Signature');
+        $root->appendChild($excluded);
+        $root->appendChild($xml->createElementNS('urn:b', 'b'));
+
+        // When
+        try {
+            $this->canonicalizer->canonicalize($root, CanonicalizationMethod::Exclusive, excluding: [$excluded]);
+        } catch (InvalidArgumentException) {
+        }
+
+        // Then
+        static::assertSame($root, $excluded->parentNode);
+        static::assertSame($excluded, $root->firstChild);
+    }
+
+    /**
+     * §9.3 row 18, section 6.3 step 2: what the xmlns attributes of built elements declare is rendered, the default
+     * namespace of a child, the xmlns="" of a child in no namespace, the prefix of a prefixed child; and the same
+     * bytes come back after serialize() then load().
+     */
+    #[Test]
+    public function itRendersTheDeclarationsBuiltElementsCarry(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $b = $xml->createElementNS('urn:b', 'b');
+        $b->setAttributeNS(self::XMLNS, 'xmlns', 'urn:b');
+        $root->appendChild($b);
+        $c = $xml->createElementNS(null, 'c');
+        $c->setAttributeNS(self::XMLNS, 'xmlns', '');
+        $root->appendChild($c);
+        $root->appendChild($xml->createElementNS('urn:d', 'q:d'));
+
+        // When
+        $bytes = $this->canonicalizer->canonicalize($root, CanonicalizationMethod::Inclusive)->bytes;
+
+        // Then
+        static::assertSame(
+            '<a xmlns="urn:a"><b xmlns="urn:b"></b><c xmlns=""></c><q:d xmlns:q="urn:d"></q:d></a>',
+            $bytes,
+        );
+        $reloaded = Loaded::document($this->serializer->serialize($document));
+        static::assertSame(
+            $bytes,
+            $this->canonicalizer->canonicalize($reloaded->root(), CanonicalizationMethod::Inclusive)->bytes,
+        );
+    }
+
+    /**
+     * Section 6.3 step 2: the declarations above the apex count. A built apex without a prefix under the root that
+     * declares its namespace passes, and the form carries the declaration it inherits.
+     */
+    #[Test]
+    public function itReadsTheDeclarationsAboveTheApex(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $apex = $xml->createElementNS('urn:a', 'b');
+        $root->appendChild($apex);
+
+        // When
+        $bytes = $this->canonicalizer->canonicalize($apex, CanonicalizationMethod::Exclusive)->bytes;
+
+        // Then
+        static::assertSame('<b xmlns="urn:a"></b>', $bytes);
     }
 }
