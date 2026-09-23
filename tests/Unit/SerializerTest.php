@@ -109,7 +109,7 @@ final class SerializerTest extends TestCase
     }
 
     /**
-     * §9.2 row 25, I-4: a Document built by hand around a document parsed outside the loader.
+     * §9.2 row 26, I-4: a Document built by hand around a document parsed outside the loader.
      */
     #[Test]
     public function itRefusesADocumentTheBrickDidNotProduce(): void
@@ -175,6 +175,11 @@ final class SerializerTest extends TestCase
                 if ($name === 'at-the-six-default-bounds-loads.xml') {
                     continue;
                 }
+                // the other fixture that does not round-trip: a prefix bound to the in-scope default namespace,
+                // which the namespace fix-up of saveXml() drops (section 6.5), pinned in its own test
+                if ($name === 'entra-common-federation-metadata-2026-09-23.xml') {
+                    continue;
+                }
                 $paths[] = $directory . '/' . $name;
             }
         }
@@ -203,6 +208,40 @@ final class SerializerTest extends TestCase
         static::assertSame(
             $before,
             $canonicalizer->canonicalize($reloaded->root(), CanonicalizationMethod::Exclusive)->bytes,
+        );
+    }
+
+    /**
+     * Section 6.5, I-15, measured: saveXml() applies the namespace fix-up of the DOM Parsing and Serialization
+     * specification and writes an element whose prefix is bound to the URI of the in-scope default namespace
+     * without its prefix, which changes its canonical form. Entra's federation metadata carries the shape.
+     */
+    #[Test]
+    public function itDropsAPrefixBoundToTheInScopeDefaultNamespace(): void
+    {
+        // Given
+        $canonicalizer = new Canonicalizer();
+        $document = Loaded::document('<a xmlns="urn:x"><p:b xmlns:p="urn:x"><p:c/></p:b></a>');
+        static::assertSame(
+            '<a xmlns="urn:x"><p:b xmlns:p="urn:x"><p:c></p:c></p:b></a>',
+            $canonicalizer->canonicalize($document->root(), CanonicalizationMethod::Exclusive)->bytes,
+        );
+
+        // When
+        $serialized = $this->serializer->serialize($document);
+
+        // Then
+        static::assertSame(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a xmlns=\"urn:x\"><b xmlns:p=\"urn:x\"><c/></b></a>",
+            $serialized,
+        );
+        $reloaded = Loaded::document($serialized);
+        static::assertSame(
+            '<a xmlns="urn:x"><b><c></c></b></a>',
+            $canonicalizer->canonicalize(
+                $reloaded->root(),
+                CanonicalizationMethod::Exclusive,
+            )->bytes,
         );
     }
 

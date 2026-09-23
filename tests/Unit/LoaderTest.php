@@ -111,7 +111,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 row 23, I-8: a letter is an NCName start character.
+     * §9.2 row 24, I-8: a letter is an NCName start character.
      */
     #[Test]
     public function itAcceptsALetterAsAnIdStartCharacter(): void
@@ -124,7 +124,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 row 24, section 5.3: unregistered attributes are not IDs, duplicated or not.
+     * §9.2 row 25, section 5.3: unregistered attributes are not IDs, duplicated or not.
      */
     #[Test]
     public function itIgnoresAnIdAttributeInAnUnregisteredNamespace(): void
@@ -365,7 +365,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 row 11, I-3: a declared UTF-16 over UTF-8 bytes, a mismatch libxml refuses itself (code 81).
+     * §9.2 row 12, I-3: a declared UTF-16 over UTF-8 bytes, a mismatch libxml refuses itself (code 81).
      */
     #[Test]
     public function itRefusesADeclaredUtf16OverUtf8BytesAsMalformed(): void
@@ -382,7 +382,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 row 12, I-5: bytes that are not UTF-8, before parsing.
+     * §9.2 row 13, I-5: bytes that are not UTF-8, before parsing.
      */
     #[Test]
     #[DataProvider('provideInvalidUtf8')]
@@ -409,7 +409,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 row 13, I-3: XML 1.1 parses with a level-1 warning, and a warning is a refusal.
+     * §9.2 row 14, I-3: XML 1.1 parses with a level-1 warning, and a warning is a refusal.
      */
     #[Test]
     public function itRefusesXml11AsADiagnostic(): void
@@ -426,7 +426,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 rows 14 to 16, I-3: an unbound prefix, an empty prefixed namespace, a rebound xml prefix and a reused
+     * §9.2 rows 15 to 17, I-3: an unbound prefix, an empty prefixed namespace, a rebound xml prefix and a reused
      * xmlns namespace parse with a level-2 diagnostic, and a diagnostic is a refusal.
      */
     #[Test]
@@ -472,7 +472,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 row 17, I-6: a relative namespace URI, which libxml parses without a diagnostic.
+     * §9.2 row 18, I-6: a relative namespace URI, which libxml parses without a diagnostic.
      */
     #[Test]
     public function itRefusesARelativeNamespaceUri(): void
@@ -489,7 +489,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 rows 18 and 19, I-3, I-16: malformed input, with libxml's code, line and column and never its message.
+     * §9.2 rows 19 and 20, I-3, I-16: malformed input, with libxml's code, line and column and never its message.
      */
     #[Test]
     #[DataProvider('provideMalformedInputs')]
@@ -538,7 +538,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 row 20, I-8: two saml:Assertion elements with the same ID refuse the whole document.
+     * §9.2 row 21, I-8: two saml:Assertion elements with the same ID refuse the whole document.
      */
     #[Test]
     public function itRefusesTwoAssertionsWithTheSameId(): void
@@ -555,7 +555,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 row 21, I-8, section 6.2: one ID space over every registered attribute at once.
+     * §9.2 row 22, I-8, section 6.2: one ID space over every registered attribute at once.
      */
     #[Test]
     public function itRefusesAnAssertionIdEqualToASignatureId(): void
@@ -572,7 +572,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 row 22, I-8: an ID that is not an NCName (Namespaces in XML 1.0 §3).
+     * §9.2 row 23, I-8: an ID that is not an NCName (Namespaces in XML 1.0 §3).
      */
     #[Test]
     #[DataProvider('provideInvalidIds')]
@@ -688,7 +688,7 @@ final class LoaderTest extends TestCase
     }
 
     /**
-     * §9.2 rows 4, 6, 10 and 12, section 6.1 steps 1 to 3: the size, the bytes and the DOCTYPE are checked before
+     * §9.2 rows 4, 6, 10 and 13, section 6.1 steps 1 to 3: the size, the bytes and the DOCTYPE are checked before
      * parsing, which the untouched buffer of libxml shows.
      */
     #[Test]

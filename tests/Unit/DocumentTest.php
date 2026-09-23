@@ -144,7 +144,7 @@ final class DocumentTest extends TestCase
     }
 
     /**
-     * §9.2 row 25, I-4: a document from a direct createFromString() call that bypassed the Loader.
+     * §9.2 row 26, I-4: a document from a direct createFromString() call that bypassed the Loader.
      */
     #[Test]
     public function itRefusesANodeOfADocumentParsedOutsideTheLoader(): void

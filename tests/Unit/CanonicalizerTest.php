@@ -373,7 +373,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * §9.2 row 28, I-13: a relative namespace on a document of the brick makes libxml return false; the refusal
+     * §9.2 row 29, I-13: a relative namespace on a document of the brick makes libxml return false; the refusal
      * carries libxml's error code and never its message, which quotes the URI (I-16).
      */
     #[Test]
@@ -395,7 +395,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * §9.2 row 25, I-4: a document from a direct createFromString() call that bypassed the Loader.
+     * §9.2 row 26, I-4: a document from a direct createFromString() call that bypassed the Loader.
      */
     #[Test]
     public function itRefusesAForeignApex(): void
@@ -413,7 +413,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * §9.2 row 26, section 6.3 step 1: an apex removed from its parent is a programming error.
+     * §9.2 row 27, section 6.3 step 1: an apex removed from its parent is a programming error.
      */
     #[Test]
     public function itRefusesAnApexThatIsNotConnected(): void
@@ -438,7 +438,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * §9.2 row 26: the check runs before any exclusion is detached.
+     * §9.2 row 27: the check runs before any exclusion is detached.
      */
     #[Test]
     public function itDetachesNothingWhenTheApexIsNotConnected(): void
@@ -466,7 +466,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * §9.2 row 27, section 6.3 step 2: an excluded element that is not a strict descendant of the apex.
+     * §9.2 row 28, section 6.3 step 2: an excluded element that is not a strict descendant of the apex.
      */
     #[Test]
     #[DataProvider('provideNonDescendants')]
@@ -512,7 +512,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * §9.2 row 27, I-14: the document is unchanged after the refusal, since nothing was detached.
+     * §9.2 row 28, I-14: the document is unchanged after the refusal, since nothing was detached.
      */
     #[Test]
     public function itLeavesTheDocumentUnchangedAfterRefusingAnExclusion(): void
@@ -560,7 +560,7 @@ final class CanonicalizerTest extends TestCase
     }
 
     /**
-     * §9.2 row 30, section 6.3: inclusive canonicalization renders every in-scope namespace already.
+     * §9.2 row 31, section 6.3: inclusive canonicalization renders every in-scope namespace already.
      */
     #[Test]
     #[DataProvider('provideInclusiveMethods')]

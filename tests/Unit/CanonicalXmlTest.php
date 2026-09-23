@@ -25,7 +25,7 @@ final class CanonicalXmlTest extends TestCase
     }
 
     /**
-     * §9.2 row 29, I-13: the empty string is refused in the constructor, whatever produced it.
+     * §9.2 row 30, I-13: the empty string is refused in the constructor, whatever produced it.
      */
     #[Test]
     public function itRefusesTheEmptyString(): void
