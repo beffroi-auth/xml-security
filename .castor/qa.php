@@ -220,6 +220,10 @@ function infect(
         description: 'The branch or commit the diff of --diff is taken from; Infection narrows it to the merge base with HEAD',
     )]
     string $base = 'origin/main',
+    #[AsOption(
+        description: 'Mutate these files only, comma-separated, with no escaped mutant allowed: the strict run narrowed while the tree is being built',
+    )]
+    string $files = '',
     #[AsOption(description: 'Mutant processes run in parallel; "max" is the number of cores minus one')]
     string $threads = 'max',
     #[AsOption(
@@ -232,7 +236,7 @@ function infect(
         io()->error('No coverage to reuse in .ci-tools/coverage: run "castor phpunit" first, or drop --reuse-coverage.');
         exit(1);
     }
-    $scope = infection_scope($diff, $all, $base);
+    $scope = infection_scope($diff, $all, $base, $files);
     if ($scope === null) {
         io()->warning('None of the files of section 9 exists yet: nothing to mutate.');
         return;
@@ -263,8 +267,11 @@ function infect(
  *
  * @return ?list<string>
  */
-function infection_scope(bool $diff, bool $all, string $base): ?array
+function infection_scope(bool $diff, bool $all, string $base, string $files): ?array
 {
+    if ($files !== '') {
+        return ['--filter=' . $files, '--with-uncovered', '--min-msi=100', '--min-covered-msi=100'];
+    }
     if ($diff) {
         // Infection runs "git diff <merge base> -- <source directories>" from the working directory and passes the
         // directories of infection.json.dist as they are written: this is why that file sits at the root of the
