@@ -10,13 +10,17 @@ use Beffroi\Xml\Core\Canonicalizer;
 use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\DocumentFactory;
 use Beffroi\Xml\Core\Exception\ForeignNode;
+use Beffroi\Xml\Core\Exception\MalformedXml;
+use Beffroi\Xml\Core\Exception\ParserDiagnostic;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Core\Serializer;
 use Beffroi\Xml\Core\Tests\Support\Fixtures;
 use Beffroi\Xml\Core\Tests\Support\Foreign;
 use Beffroi\Xml\Core\Tests\Support\Loaded;
 use Dom\XMLDocument;
+use function filesize;
 use function glob;
+use function in_array;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -175,9 +179,23 @@ final class SerializerTest extends TestCase
                 if ($name === 'at-the-six-default-bounds-loads.xml') {
                     continue;
                 }
-                // the other fixture that does not round-trip: a prefix bound to the in-scope default namespace,
-                // which the namespace fix-up of saveXml() drops (section 6.5), pinned in its own test
-                if ($name === 'entra-common-federation-metadata-2026-09-23.xml') {
+                // the other fixtures that do not round-trip, each pinned in its own test (section 6.5): a prefix
+                // bound to the in-scope default namespace, which the namespace fix-up of saveXml() drops; adjacent
+                // CDATA sections that saveXml() merges into one holding "]]>"; an ampersand in a namespace name that
+                // saveXml() escapes twice
+                if (in_array(
+                    $name,
+                    [
+                        'entra-common-federation-metadata-2026-09-23.xml',
+                        'adversarial-cdata-nested-marker-loads.xml',
+                        'adversarial-xmlns-attribute-value-with-entity-amp-loads.xml',
+                    ],
+                    true,
+                )) {
+                    continue;
+                }
+                // at the byte bound: the declaration the serializer adds pushes them over maxBytes on the way back
+                if (filesize($path) > (1_048_576 - 40)) {
                     continue;
                 }
                 $paths[] = $directory . '/' . $name;
@@ -243,6 +261,57 @@ final class SerializerTest extends TestCase
                 CanonicalizationMethod::Exclusive,
             )->bytes,
         );
+    }
+
+    /**
+     * Section 6.5, section 13, measured: saveXml() merges adjacent CDATA sections into one, and the junction of
+     * "a]]" and ">b" is a CDATA section holding "]]>", which no parser accepts; the canonical form, which folds the
+     * sections, is right. A consumer builds no adjacent CDATA sections.
+     */
+    #[Test]
+    public function itCannotRoundTripAdjacentCdataSectionsWhoseJunctionIsACdataEndMarker(): void
+    {
+        // Given
+        $document = Loaded::fixture('behaviour/adversarial-cdata-nested-marker-loads.xml');
+        static::assertSame(
+            '<doc>a]]&gt;b</doc>',
+            new Canonicalizer()->canonicalize($document->root(), CanonicalizationMethod::Inclusive)->bytes,
+        );
+
+        // When
+        $serialized = $this->serializer->serialize($document);
+
+        // Then
+        static::assertSame("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<doc><![CDATA[a]]>b]]></doc>", $serialized);
+        $this->expectException(MalformedXml::class);
+        Loaded::document($serialized);
+    }
+
+    /**
+     * Section 6.5, section 13, measured: saveXml() escapes an ampersand of a namespace name twice, so the name
+     * changes on the way back and libxml reports it; the canonical form writes it once. A namespace name holds no
+     * ampersand in the stack.
+     */
+    #[Test]
+    public function itCannotRoundTripAnAmpersandInANamespaceName(): void
+    {
+        // Given
+        $document = Loaded::fixture('behaviour/adversarial-xmlns-attribute-value-with-entity-amp-loads.xml');
+        static::assertSame(
+            '<doc xmlns:x="urn:x?a=1&#38;b=2"><x:e></x:e></doc>',
+            new Canonicalizer()->canonicalize($document->root(), CanonicalizationMethod::Inclusive)->bytes,
+        );
+
+        // When
+        $serialized = $this->serializer->serialize($document);
+
+        // Then
+        static::assertSame(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<doc xmlns:x=\"urn:x?a=1&amp;#38;b=2\"><x:e/></doc>",
+            $serialized,
+        );
+        $this->expectException(ParserDiagnostic::class);
+        Loaded::document($serialized);
     }
 
     /**
