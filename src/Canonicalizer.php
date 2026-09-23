@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Core;
 
+use function array_pop;
 use function array_reverse;
 use Beffroi\Xml\Core\Exception\CanonicalizationFailed;
 use Beffroi\Xml\Core\Exception\ForeignNode;
@@ -24,6 +25,8 @@ use function sprintf;
  */
 final readonly class Canonicalizer
 {
+    private const string XMLNS = 'http://www.w3.org/2000/xmlns/';
+
     /**
      * The canonical form of $apex and its subtree, without the subtrees of $excluding.
      *
@@ -31,7 +34,7 @@ final readonly class Canonicalizer
      *
      * @throws CanonicalizationFailed when libxml returns false or an empty string
      * @throws ForeignNode when $apex does not belong to a document of the brick
-     * @throws InvalidArgumentException when $apex is not connected to its document, when an excluded element is not a strict descendant of $apex or is listed twice, or when $inclusiveNamespaces is not empty for an inclusive method
+     * @throws InvalidArgumentException when $apex is not connected to its document, when an element of its subtree without a prefix has no xmlns attribute in scope declaring its namespace, when an excluded element is not a strict descendant of $apex or is listed twice, or when $inclusiveNamespaces is not empty for an inclusive method
      */
     public function canonicalize(
         Element $apex,
@@ -47,6 +50,7 @@ final readonly class Canonicalizer
         if ($inclusiveNamespaces->prefixes !== [] && ! $method->isExclusive()) {
             throw new InvalidArgumentException('Inclusive namespaces apply to exclusive canonicalization only (section 6.3).');
         }
+        self::refuseUndeclaredDefaultNamespace($apex);
         $exclusions = $this->exclusions($apex, $excluding);
 
         $previous = libxml_use_internal_errors(true);
@@ -82,7 +86,53 @@ final readonly class Canonicalizer
     }
 
     /**
-     * Every excluded element with its parent, checked before anything is detached (section 6.3 step 2).
+     * Section 6.3 step 2: every element of the apex's subtree that has no prefix is in the default namespace the
+     * xmlns attributes in scope declare, the ancestors of the apex included, a child in no namespace under a default
+     * namespace carrying its own xmlns="". C14N() renders the declarations that exist as attributes, or that PHP
+     * materialises for a prefixed name: a default namespace given to createElementNS() without one is a namespace
+     * the canonical form silently loses (measured, section 13). A loaded document always passes, the parser
+     * materialises every declaration; only a built one can fail, a programming error of its builder, never input.
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function refuseUndeclaredDefaultNamespace(Element $apex): void
+    {
+        /** @var list<array{Element, ?string}> $stack each element with the default namespace declared above it, '' for xmlns="" */
+        $stack = [[$apex, self::defaultNamespaceAbove($apex)]];
+        while ($stack !== []) {
+            [$element, $inherited] = array_pop($stack);
+            $declared = $element->getAttributeNS(self::XMLNS, 'xmlns') ?? $inherited;
+            if ($element->prefix === null && $element->namespaceURI !== ($declared === '' ? null : $declared)) {
+                throw new InvalidArgumentException('An element without a prefix has no xmlns attribute in scope that declares its namespace (section 6.3).');
+            }
+            for (
+                $child = $element->lastElementChild;
+                $child instanceof Element;
+                $child = $child->previousElementSibling
+            ) {
+                $stack[] = [$child, $declared];
+            }
+        }
+    }
+
+    /**
+     * The value of the nearest xmlns attribute on the ancestors of $element, '' for xmlns="", null when none
+     * declares one.
+     */
+    private static function defaultNamespaceAbove(Element $element): ?string
+    {
+        for ($ancestor = $element->parentElement; $ancestor instanceof Element; $ancestor = $ancestor->parentElement) {
+            $declared = $ancestor->getAttributeNS(self::XMLNS, 'xmlns');
+            if ($declared !== null) {
+                return $declared;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Every excluded element with its parent, checked before anything is detached (section 6.3 step 3).
      *
      * @param list<Element> $excluding
      *
