@@ -73,7 +73,7 @@ final class InspectorTest extends TestCase
     }
 
     /**
-     * I-5, §9.2 row 13: XML 1.1, once libxml's warning is out of the way.
+     * I-5, §9.2 row 14: XML 1.1, once libxml's warning is out of the way.
      */
     #[Test]
     public function itRefusesAnXmlVersionOtherThan10(): void
@@ -342,7 +342,7 @@ final class InspectorTest extends TestCase
     }
 
     /**
-     * Section 5.3, §9.2 row 24: an ID attribute nobody registered is not an ID.
+     * Section 5.3, §9.2 row 25: an ID attribute nobody registered is not an ID.
      */
     #[Test]
     public function itIndexesNothingWhenNothingIsRegistered(): void
