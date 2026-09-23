@@ -386,7 +386,7 @@ The defaults are provisional until the sub-spike measures the metadata of ADFS a
 
 **Accepted, on purpose**: comments (Canonical XML defines their treatment and `#WithComments` methods exist), processing instructions (inert, and covered by the canonical form where they sit), CDATA sections, whitespace-only text nodes, a UTF-8 byte order mark, `xmlns=""`, `xml:lang`, `xml:space`, `xml:base` (read by nobody: the brick resolves no URI).
 
-**Never called, in the brick and in its consumers**, enforced by `ekino/phpstan-banned-code` in the brick's own PHPStan configuration and recommended, with the same list, to every consumer:
+**Never called, in the brick and in its consumers**, enforced in the brick's own PHPStan configuration (`.ci-tools/phpstan.neon`): by `ekino/phpstan-banned-code` for the functions, since that extension bans function names and whole node types only, and by two rules of the repository (`tests/PhpStan/`) for the classes, the constants, the methods and the static calls, each confined call allowed in its one class and every dynamic call refused; under PHPStan, a test scans `src/` for the same tokens. The list is recommended, with the rules, to every consumer:
 
 | Banned | Because |
 |---|---|
@@ -399,6 +399,9 @@ The defaults are provisional until the sub-spike measures the metadata of ADFS a
 | `C14N()`, `C14NFile()` outside `Canonicalizer` | I-13 |
 | `saveXml()`, `saveXmlFile()` outside `Serializer` | I-15 |
 | `importNode()`, `adoptNode()` | Section 6.6 |
+| `xinclude()` | The method form of `LIBXML_XINCLUDE` (I-2) |
+| `validate()`, `schemaValidate()`, `schemaValidateSource()`, `relaxNgValidate()`, `relaxNgValidateSource()` | Section 11: no validation, and a DTD is refused |
+| `createEntityReference()` | I-1 |
 
 The property reads `textContent`, `nodeValue` and `innerHTML` on an element cannot be banned by that tool; the brick does not use them, `Text::of()` is the way, and the review of every consumer checks it.
 
