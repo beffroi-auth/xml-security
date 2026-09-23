@@ -1,0 +1,188 @@
+# PHPStan at level max, with no baseline, ever: every finding is fixed in the code or refused in the review.
+#
+# The extensions come from the phpqa image (/tools/.composer/vendor-bin/phpstan), which is where %rootDir% points;
+# PHPUnit's classes are scanned from the image's PHPUnit install. The two rules of tests/PhpStan enforce the
+# table of section 8 of the specification where ekino/phpstan-banned-code cannot: that tool bans function names
+# and whole node types, not classes, methods, static calls or constants.
+parameters:
+	level: max
+	scanDirectories:
+		- %rootDir%/../../../../phpunit/vendor
+	paths:
+		- %currentWorkingDirectory%/src
+		- %currentWorkingDirectory%/tests
+	checkUninitializedProperties: true
+	treatPhpDocTypesAsCertain: false
+	banned_code:
+		non_ignorable: true
+		use_from_tests: true
+		nodes:
+			-
+				type: Stmt_Echo
+				functions: null
+			-
+				type: Expr_Eval
+				functions: null
+			-
+				type: Expr_Exit
+				functions: null
+			-
+				type: Expr_Print
+				functions: null
+			-
+				type: Expr_ShellExec
+				functions: null
+			-
+				type: Expr_FuncCall
+				functions:
+					# the defaults of the extension
+					- dd
+					- debug_backtrace
+					- dump
+					- exec
+					- passthru
+					- phpinfo
+					- print_r
+					- proc_open
+					- shell_exec
+					- system
+					- var_dump
+					# section 8: no entity loader, no second parser (I-2, I-4)
+					- libxml_set_external_entity_loader
+					- libxml_disable_entity_loader
+					- simplexml_load_string
+					- simplexml_load_file
+					- simplexml_import_dom
+					- xml_parser_create
+					- xml_parser_create_ns
+					# the security stance: no silencing, no dynamic call (the file and network functions are the
+					# guard test's business: the tests read their fixtures)
+					- error_reporting
+					- call_user_func
+					- call_user_func_array
+	# The table of section 8, for the rules of tests/PhpStan. A call is allowed only in the file that owns it.
+	bannedNames:
+		- DOMDocument
+		- DOMXPath
+		- DOMImplementation
+		- Dom\XPath
+		- SimpleXMLElement
+		- XMLReader
+		- XMLWriter
+		- LIBXML_NOENT
+		- LIBXML_DTDLOAD
+		- LIBXML_DTDATTR
+		- LIBXML_DTDVALID
+		- LIBXML_XINCLUDE
+		- LIBXML_PARSEHUGE
+		- LIBXML_NOBLANKS
+		- LIBXML_NOCDATA
+		- ReflectionClass
+		- ReflectionObject
+		- ReflectionMethod
+		- ReflectionProperty
+		- ReflectionFunction
+		- ReflectionNamedType
+	bannedCalls:
+		-
+			method: getElementById
+			allowedIn: []
+		-
+			method: setIdAttribute
+			allowedIn: []
+		-
+			method: setIdAttributeNS
+			allowedIn: []
+		-
+			method: setIdAttributeNode
+			allowedIn: []
+		-
+			method: getElementsByTagName
+			allowedIn: []
+		-
+			method: getElementsByTagNameNS
+			allowedIn: []
+		-
+			method: querySelector
+			allowedIn: []
+		-
+			method: querySelectorAll
+			allowedIn: []
+		-
+			method: createFromString
+			allowedIn: [src/Loader.php, tests/]
+		-
+			method: createFromFile
+			allowedIn: []
+		-
+			method: createEmpty
+			allowedIn: [src/DocumentFactory.php]
+		-
+			method: C14N
+			allowedIn: [src/Canonicalizer.php]
+		-
+			method: C14NFile
+			allowedIn: []
+		-
+			method: saveXml
+			allowedIn: [src/Serializer.php]
+		-
+			method: saveXmlFile
+			allowedIn: []
+		-
+			method: importNode
+			allowedIn: []
+		-
+			method: adoptNode
+			allowedIn: []
+		-
+			method: xinclude
+			allowedIn: []
+		-
+			method: validate
+			allowedIn: []
+		-
+			method: schemaValidate
+			allowedIn: []
+		-
+			method: schemaValidateSource
+			allowedIn: []
+		-
+			method: relaxNgValidate
+			allowedIn: []
+		-
+			method: relaxNgValidateSource
+			allowedIn: []
+		-
+			method: createEntityReference
+			allowedIn: []
+
+parametersSchema:
+	bannedNames: listOf(string())
+	bannedCalls: listOf(structure([
+		method: string()
+		allowedIn: listOf(string())
+	]))
+
+services:
+	-
+		class: Beffroi\Xml\Core\Tests\PhpStan\BannedNamesRule
+		arguments:
+			names: %bannedNames%
+		tags:
+			- phpstan.rules.rule
+	-
+		class: Beffroi\Xml\Core\Tests\PhpStan\BannedCallsRule
+		arguments:
+			calls: %bannedCalls%
+			workingDirectory: %currentWorkingDirectory%
+		tags:
+			- phpstan.rules.rule
+
+includes:
+	- %rootDir%/conf/bleedingEdge.neon
+	- %rootDir%/../../ekino/phpstan-banned-code/extension.neon
+	- %rootDir%/../phpstan-deprecation-rules/rules.neon
+	- %rootDir%/../phpstan-phpunit/extension.neon
+	- %rootDir%/../phpstan-phpunit/rules.neon
+	- %rootDir%/../phpstan-strict-rules/rules.neon
