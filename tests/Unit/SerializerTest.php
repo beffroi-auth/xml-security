@@ -10,8 +10,7 @@ use Beffroi\Xml\Core\Canonicalizer;
 use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\DocumentFactory;
 use Beffroi\Xml\Core\Exception\ForeignNode;
-use Beffroi\Xml\Core\Exception\MalformedXml;
-use Beffroi\Xml\Core\Exception\ParserDiagnostic;
+use Beffroi\Xml\Core\Exception\SerializationFailed;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Core\Serializer;
 use Beffroi\Xml\Core\Tests\Support\Fixtures;
@@ -20,7 +19,6 @@ use Beffroi\Xml\Core\Tests\Support\Loaded;
 use Dom\XMLDocument;
 use function filesize;
 use function glob;
-use function in_array;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -31,7 +29,7 @@ use function substr;
 
 /**
  * Section 6.5, I-15: the whole document, formatOutput false, an XML declaration and UTF-8, whitespace kept, nothing
- * reformatted afterwards.
+ * reformatted afterwards, and the four shapes that would not survive saveXml() then a parser refused first.
  */
 final class SerializerTest extends TestCase
 {
@@ -132,12 +130,13 @@ final class SerializerTest extends TestCase
     }
 
     /**
-     * §9.3 row 17: every serialized document of the fixtures loads again through the Loader without refusal, and
-     * canonicalizes to the same bytes as before serialization.
+     * §9.3 row 17: every serialized document of the fixtures is either refused by a rule of section 6.5, or loads
+     * again through the Loader without refusal and canonicalizes to the same bytes as before serialization. What
+     * the serializer lets out is the canonical form that was signed.
      */
     #[Test]
     #[DataProvider('provideLoadableFixtures')]
-    public function itsOutputLoadsAgainAndCanonicalizesToTheSameBytes(string $fixture): void
+    public function itsOutputLoadsAgainAndCanonicalizesToTheSameBytesUnlessItRefuses(string $fixture): void
     {
         // Given
         $canonicalizer = new Canonicalizer();
@@ -145,9 +144,16 @@ final class SerializerTest extends TestCase
         $before = $canonicalizer->canonicalize($document->root(), CanonicalizationMethod::InclusiveWithComments)->bytes;
 
         // When
-        $reloaded = Loaded::document($this->serializer->serialize($document));
+        try {
+            $serialized = $this->serializer->serialize($document);
+        } catch (SerializationFailed $refused) {
+            static::assertStringEndsWith('(section 6.5).', $refused->getMessage());
+
+            return;
+        }
 
         // Then
+        $reloaded = Loaded::document($serialized);
         static::assertSame(
             $before,
             $canonicalizer->canonicalize($reloaded->root(), CanonicalizationMethod::InclusiveWithComments)->bytes,
@@ -170,28 +176,9 @@ final class SerializerTest extends TestCase
                 if ($directory === 'hostile' && ! str_ends_with($name, '-loads.xml')) {
                     continue;
                 }
-                // the one fixture that does not round-trip: a carriage return in a text node (section 6.5)
-                if ($name === 'c14n-3.4-derived-character-references.xml') {
-                    continue;
-                }
                 // 512 declarations over 10 000 elements: seconds of inclusive canonicalization (section 13),
                 // round-tripped exclusively in its own test
                 if ($name === 'at-the-six-default-bounds-loads.xml') {
-                    continue;
-                }
-                // the other fixtures that do not round-trip, each pinned in its own test (section 6.5): a prefix
-                // bound to the in-scope default namespace, which the namespace fix-up of saveXml() drops; adjacent
-                // CDATA sections that saveXml() merges into one holding "]]>"; an ampersand in a namespace name that
-                // saveXml() escapes twice
-                if (in_array(
-                    $name,
-                    [
-                        'entra-common-federation-metadata-2026-09-23.xml',
-                        'adversarial-cdata-nested-marker-loads.xml',
-                        'adversarial-xmlns-attribute-value-with-entity-amp-loads.xml',
-                    ],
-                    true,
-                )) {
                     continue;
                 }
                 // at the byte bound: the declaration the serializer adds pushes them over maxBytes on the way back
@@ -230,113 +217,275 @@ final class SerializerTest extends TestCase
     }
 
     /**
-     * Section 6.5, I-15, measured: saveXml() applies the namespace fix-up of the DOM Parsing and Serialization
-     * specification and writes an element whose prefix is bound to the URI of the in-scope default namespace
-     * without its prefix, which changes its canonical form. Entra's federation metadata carries the shape.
+     * §9.3 row 20, section 6.5: the four shapes measured not to survive saveXml() then a parser, each in a loaded
+     * fixture, each refused with its rule named (I-16).
      */
     #[Test]
-    public function itDropsAPrefixBoundToTheInScopeDefaultNamespace(): void
+    #[DataProvider('provideShapesThatWouldNotRoundTrip')]
+    public function itRefusesAShapeThatWouldNotRoundTrip(string $fixture, string $message): void
     {
         // Given
-        $canonicalizer = new Canonicalizer();
-        $document = Loaded::document('<a xmlns="urn:x"><p:b xmlns:p="urn:x"><p:c/></p:b></a>');
-        static::assertSame(
-            '<a xmlns="urn:x"><p:b xmlns:p="urn:x"><p:c></p:c></p:b></a>',
-            $canonicalizer->canonicalize($document->root(), CanonicalizationMethod::Exclusive)->bytes,
-        );
+        $document = Loaded::fixture($fixture);
+
+        // Then
+        $this->expectException(SerializationFailed::class);
+        $this->expectExceptionMessageIs($message);
 
         // When
-        $serialized = $this->serializer->serialize($document);
+        $this->serializer->serialize($document);
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function provideShapesThatWouldNotRoundTrip(): iterable
+    {
+        yield 'a carriage return in a text node, the vector of Canonical XML 1.0 §3.4' => [
+            'canonical/c14n-3.4-derived-character-references.xml',
+            'A text, CDATA, comment or processing instruction node holds a carriage return, which a parser would normalise to a line feed (section 6.5).',
+        ];
+        yield 'a prefix bound to the in-scope default namespace, the ds:KeyInfo of Entra' => [
+            'real/entra-common-federation-metadata-2026-09-23.xml',
+            'An element carries a prefix bound to the in-scope default namespace, which saveXml() would drop (section 6.5).',
+        ];
+        yield 'a CDATA section holding the end marker, two adjacent sections merged by the parser' => [
+            'behaviour/adversarial-cdata-nested-marker-loads.xml',
+            'A CDATA section holds the sequence that ends one, which saveXml() would write as it is (section 6.5).',
+        ];
+        yield 'an ampersand in a namespace name' => [
+            'behaviour/adversarial-xmlns-attribute-value-with-entity-amp-loads.xml',
+            'A namespace name holds an ampersand, which saveXml() does not write faithfully (section 6.5).',
+        ];
+    }
+
+    /**
+     * §9.3 row 20, section 6.5, measured: the namespace fix-up of saveXml() drops the prefix of an element whose
+     * namespace is the default namespace in force where it starts, whichever element declared it and whatever the
+     * element declares itself.
+     */
+    #[Test]
+    #[DataProvider('provideAPrefixBoundToTheInScopeDefaultNamespace')]
+    public function itRefusesAPrefixBoundToTheInScopeDefaultNamespace(string $xml): void
+    {
+        // Given
+        $document = Loaded::document($xml);
+
+        // Then
+        $this->expectException(SerializationFailed::class);
+        $this->expectExceptionMessageIs('An element carries a prefix bound to the in-scope default namespace, which saveXml() would drop (section 6.5).');
+
+        // When
+        $this->serializer->serialize($document);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function provideAPrefixBoundToTheInScopeDefaultNamespace(): iterable
+    {
+        yield 'declared by the parent' => ['<a xmlns="urn:x"><p:b xmlns:p="urn:x"><p:c/></p:b></a>'];
+        yield 'declared by a prefixed parent' => ['<p:a xmlns:p="urn:x" xmlns="urn:y"><q:b xmlns:q="urn:y"/></p:a>'];
+        yield 'undeclared again by the element itself' => [
+            '<a xmlns="urn:x"><p:b xmlns:p="urn:x" xmlns=""><c/></p:b></a>',
+        ];
+        yield 'declared by the element itself, for its child' => [
+            '<r><p:a xmlns:p="urn:x" xmlns="urn:x"><p:b/></p:a></r>',
+        ];
+    }
+
+    /**
+     * §9.3 row 9, section 6.5: two prefixes bound to one namespace name are written as they are, so a second
+     * prefix is not the shape saveXml() drops.
+     */
+    #[Test]
+    public function itKeepsASecondPrefixBoundToTheSameNamespace(): void
+    {
+        // Given
+        $document = Loaded::document('<a xmlns:q="urn:x"><p:b xmlns:p="urn:x"/></a>');
+
+        // When
+        $bytes = $this->serializer->serialize($document);
 
         // Then
         static::assertSame(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a xmlns=\"urn:x\"><b xmlns:p=\"urn:x\"><c/></b></a>",
-            $serialized,
-        );
-        $reloaded = Loaded::document($serialized);
-        static::assertSame(
-            '<a xmlns="urn:x"><b><c></c></b></a>',
-            $canonicalizer->canonicalize(
-                $reloaded->root(),
-                CanonicalizationMethod::Exclusive,
-            )->bytes,
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a xmlns:q=\"urn:x\"><p:b xmlns:p=\"urn:x\"/></a>",
+            $bytes,
         );
     }
 
     /**
-     * Section 6.5, section 13, measured: saveXml() merges adjacent CDATA sections into one, and the junction of
-     * "a]]" and ">b" is a CDATA section holding "]]>", which no parser accepts; the canonical form, which folds the
-     * sections, is right. A consumer builds no adjacent CDATA sections.
+     * §9.3 row 21, section 6.5, measured: a carriage return in any character data node is written as the byte
+     * itself, and a parser normalises it to a line feed, in a comment or a processing instruction too.
      */
     #[Test]
-    public function itCannotRoundTripAdjacentCdataSectionsWhoseJunctionIsACdataEndMarker(): void
+    #[DataProvider('provideCharacterDataNodeTypes')]
+    public function itRefusesACarriageReturnInABuiltCharacterDataNode(string $type): void
     {
         // Given
-        $document = Loaded::fixture('behaviour/adversarial-cdata-nested-marker-loads.xml');
-        static::assertSame(
-            '<doc>a]]&gt;b</doc>',
-            new Canonicalizer()->canonicalize($document->root(), CanonicalizationMethod::Inclusive)->bytes,
-        );
-
-        // When
-        $serialized = $this->serializer->serialize($document);
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $root->appendChild(match ($type) {
+            'text' => $xml->createTextNode("a\rb"),
+            'CDATA section' => $xml->createCDATASection("a\rb"),
+            'comment' => $xml->createComment("a\rb"),
+            default => $xml->createProcessingInstruction('pi', "a\rb"),
+        });
 
         // Then
-        static::assertSame("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<doc><![CDATA[a]]>b]]></doc>", $serialized);
-        $this->expectException(MalformedXml::class);
-        Loaded::document($serialized);
+        $this->expectException(SerializationFailed::class);
+        $this->expectExceptionMessageIs('A text, CDATA, comment or processing instruction node holds a carriage return, which a parser would normalise to a line feed (section 6.5).');
+
+        // When
+        $this->serializer->serialize($document);
     }
 
     /**
-     * Section 6.5, section 13, measured: saveXml() escapes an ampersand of a namespace name twice, so the name
-     * changes on the way back and libxml reports it; the canonical form writes it once. A namespace name holds no
-     * ampersand in the stack.
+     * @return iterable<string, array{string}>
      */
-    #[Test]
-    public function itCannotRoundTripAnAmpersandInANamespaceName(): void
+    public static function provideCharacterDataNodeTypes(): iterable
     {
-        // Given
-        $document = Loaded::fixture('behaviour/adversarial-xmlns-attribute-value-with-entity-amp-loads.xml');
-        static::assertSame(
-            '<doc xmlns:x="urn:x?a=1&#38;b=2"><x:e></x:e></doc>',
-            new Canonicalizer()->canonicalize($document->root(), CanonicalizationMethod::Inclusive)->bytes,
-        );
-
-        // When
-        $serialized = $this->serializer->serialize($document);
-
-        // Then
-        static::assertSame(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<doc xmlns:x=\"urn:x?a=1&amp;#38;b=2\"><x:e/></doc>",
-            $serialized,
-        );
-        $this->expectException(ParserDiagnostic::class);
-        Loaded::document($serialized);
+        foreach (['text', 'CDATA section', 'comment', 'processing instruction'] as $type) {
+            yield $type => [$type];
+        }
     }
 
     /**
-     * Section 6.5, measured: a carriage return in a text node does not survive a round trip. saveXml() writes the
-     * byte as it is, and the parser normalises it to a line feed (XML 1.0 §2.11), so the canonical form of what
-     * was serialized is not the canonical form of what was loaded. The vector of Canonical XML 1.0 §3.4 carries one.
+     * Section 6.5: a comment or a processing instruction outside the root is walked too.
      */
     #[Test]
-    public function itCannotRoundTripACarriageReturnInATextNode(): void
+    public function itRefusesACarriageReturnInACommentOutsideTheRoot(): void
     {
         // Given
-        $canonicalizer = new Canonicalizer();
-        $document = Loaded::fixture('canonical/c14n-3.4-derived-character-references.xml');
-        static::assertStringContainsString(
-            "First line&#xD;\nSecond line",
-            $canonicalizer->canonicalize($document->root(), CanonicalizationMethod::Inclusive)->bytes,
-        );
-
-        // When
-        $reloaded = Loaded::document($this->serializer->serialize($document));
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $xml->insertBefore($xml->createComment("a\rb"), $root);
 
         // Then
-        static::assertStringContainsString(
-            "First line\nSecond line",
-            $canonicalizer->canonicalize($reloaded->root(), CanonicalizationMethod::Inclusive)->bytes,
+        $this->expectException(SerializationFailed::class);
+        $this->expectExceptionMessageIs('A text, CDATA, comment or processing instruction node holds a carriage return, which a parser would normalise to a line feed (section 6.5).');
+
+        // When
+        $this->serializer->serialize($document);
+    }
+
+    /**
+     * §9.3 row 21, section 6.5, measured: a built child without a prefix is written with its namespace declared, so
+     * a prefixed grandchild in the same namespace is written without its prefix.
+     */
+    #[Test]
+    public function itRefusesAPrefixedGrandchildUnderABuiltChildInTheSameDefaultNamespace(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:r', 'root'), 'r');
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $root->appendChild($xml->createElementNS('urn:x', 'child'))->appendChild($xml->createElementNS(
+            'urn:x',
+            'g:grand',
+        ));
+
+        // Then
+        $this->expectException(SerializationFailed::class);
+        $this->expectExceptionMessageIs('An element carries a prefix bound to the in-scope default namespace, which saveXml() would drop (section 6.5).');
+
+        // When
+        $this->serializer->serialize($document);
+    }
+
+    /**
+     * §9.3 row 21, section 6.5: an ampersand in the namespace of a built element, which no declaration attribute
+     * carries yet; libxml's canonical form writes it raw (measured, section 13).
+     */
+    #[Test]
+    public function itRefusesAnAmpersandInTheNamespaceOfABuiltElement(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $root->appendChild($xml->createElementNS('urn:x?a=1&b=2', 'x:e'));
+
+        // Then
+        $this->expectException(SerializationFailed::class);
+        $this->expectExceptionMessageIs('A namespace name holds an ampersand, which saveXml() does not write faithfully (section 6.5).');
+
+        // When
+        $this->serializer->serialize($document);
+    }
+
+    /**
+     * Section 6.5: an ampersand in the namespace of a built attribute.
+     */
+    #[Test]
+    public function itRefusesAnAmpersandInTheNamespaceOfABuiltAttribute(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $document->root()->setAttributeNS('urn:q?c=1&d=2', 'q:att', 'v');
+
+        // Then
+        $this->expectException(SerializationFailed::class);
+        $this->expectExceptionMessageIs('A namespace name holds an ampersand, which saveXml() does not write faithfully (section 6.5).');
+
+        // When
+        $this->serializer->serialize($document);
+    }
+
+    /**
+     * Section 6.5: a CDATA section whose data came to hold the end marker after its creation, which
+     * createCDATASection() refuses but appendData() does not.
+     */
+    #[Test]
+    public function itRefusesABuiltCdataSectionWhoseDataHoldsTheEndMarker(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $cdata = $xml->createCDATASection('a]]');
+        $root->appendChild($cdata);
+        $cdata->appendData('>b');
+
+        // Then
+        $this->expectException(SerializationFailed::class);
+        $this->expectExceptionMessageIs('A CDATA section holds the sequence that ends one, which saveXml() would write as it is (section 6.5).');
+
+        // When
+        $this->serializer->serialize($document);
+    }
+
+    /**
+     * Section 6.5: two built CDATA sections stay two, and a carriage return, a line feed or a tab in an attribute
+     * value is written as a character reference, so neither is a shape the serializer refuses (measured, section 13).
+     */
+    #[Test]
+    public function itSerializesWhatSurvivesARoundTrip(): void
+    {
+        // Given
+        $document = new DocumentFactory()->create(new Name('urn:a', 'a'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $root->setAttribute('v', "1\n2\t3\r4");
+        $root->appendChild($xml->createCDATASection('a]]'));
+        $root->appendChild($xml->createCDATASection('>b'));
+
+        // When
+        $bytes = $this->serializer->serialize($document);
+
+        // Then
+        static::assertSame(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            . '<a xmlns="urn:a" v="1&#10;2&#9;3&#13;4"><![CDATA[a]]]]><![CDATA[>b]]></a>',
+            $bytes,
         );
+        static::assertSame("1\n2\t3\r4", Loaded::document($bytes)->root()->getAttribute('v'));
     }
 }
