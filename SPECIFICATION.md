@@ -361,6 +361,8 @@ What canonicalization renders on the apex is what the specification says and wha
 
 Nothing in the brick pretty-prints. A signature is computed on a canonical form, and a document reformatted after signing is a document whose signature no longer verifies.
 
+A carriage return in a text node does not survive a round trip: `saveXml()` writes the byte as it is, and the parser of the peer normalises it to a line feed (XML 1.0 §2.11), so the canonical form of what was sent is not the canonical form of what was signed, which renders it `&#xD;` (measured on the vector of Canonical XML 1.0 §3.4, section 13). A consumer that builds a document to be signed writes no carriage return in a text node; whether the serializer refuses one is left to section 12.
+
 ### 6.6 The contract with xml-dsig
 
 This section describes how the consumer of section 5 uses it; it specifies nothing of `xml-dsig` itself, only what this brick promises it.
@@ -489,7 +491,7 @@ One fixture file per case under `tests/Fixture/hostile/`, each loaded through th
 | `Document::owning()` on a node of a loaded document, of a created document, and of a re-loaded canonical form | the right `Document` each time |
 | A `Document` dropped by the caller | the `WeakMap` entry is gone (`Internal\Registry::count()`) |
 | `DocumentFactory::create()` then `Serializer::serialize()` | `<?xml version="1.0" encoding="UTF-8"?>` on the first line, the root with its namespace declaration on the second, no indentation |
-| Every serialized document of the fixtures | loads again through the `Loader` without refusal, and canonicalizes to the same bytes as before serialization |
+| Every serialized document of the fixtures | loads again through the `Loader` without refusal, and canonicalizes to the same bytes as before serialization; the §3.4 vector, which carries a carriage return in a text node, is the measured exception of 6.5 and has its own test |
 
 ### 9.4 Real documents
 
@@ -556,6 +558,7 @@ Each item becomes an issue on the spike's epic the day the sub-spike opens; none
 
 - The six default bounds of section 7, once the metadata of ADFS and SimpleSAMLphp and a response with an encrypted assertion are measured.
 - Whether a UTF-8 byte order mark stays accepted, once the interoperability targets are captured. **Answered on 23 September 2026**: Entra's common federation metadata starts with one (section 13), so the mark stays accepted (I-5) and the real fixture keeps it byte for byte.
+- Whether `Serializer` refuses a document holding a carriage return in a text node, which `saveXml()` writes as it is and a parser normalises away (6.5).
 - Whether `LIBXML_NO_XXE` is set at all: neither the development machine nor the `phpqa` image has libxml 2.13, and a flag no test can exercise is a flag the corpus does not cover.
 
 ## 13. Sources
@@ -599,7 +602,7 @@ Each item becomes an issue on the spike's epic the day the sub-spike opens; none
 - Inclusive canonicalization of `<s:a>` under `<root xmlns:s xmlns:x xmlns:unused xml:lang="fr">` renders `xmlns:s`, `xmlns:unused`, `xmlns:x` and `xml:lang="fr"`; exclusive renders `xmlns:s` and `xmlns:x`; exclusive with prefix list `unused` adds `xmlns:unused`; exclusive with `#default` renders the default namespace of an ancestor; an unknown prefix in the list changes nothing. `importNode()` of the same element renders `xmlns:s` and `xmlns:x` only. Re-parsing the canonical bytes yields the element with its namespace and its namespaced attribute.
 - Detaching `ds:Signature`, canonicalizing the root and reinserting gives, inclusive and exclusive, exactly the bytes of `C14N()` with the node set `(.//. | .//@* | .//namespace::*)[not(ancestor-or-self::ds:Signature)]`, and the restored document canonicalizes as before.
 - `preg_match('//u')` validates 1 200 000 bytes in 0.4 ms and returns `false` on `C0 AF`. 100 000 elements parse and iterate in 17 ms; a 773 KiB document of 24 001 elements parses and traverses iteratively in 18 ms and canonicalizes exclusively in 7 ms.
-- `Dom\XMLDocument::createEmpty()` has `formatOutput` `false`, version `1.0`, encoding `UTF-8`; `saveXml()` writes the declaration, a line feed and the root.
+- `Dom\XMLDocument::createEmpty()` has `formatOutput` `false`, version `1.0`, encoding `UTF-8`; `saveXml()` writes the declaration, a line feed and the root. `saveXml()` writes a carriage return of a text node as the byte itself, which the parser normalises to a line feed on the next load: the vector of Canonical XML 1.0 §3.4, canonicalized as `First line&#xD;` then a line feed, canonicalizes as `First line` then a line feed after a round trip (23 September).
 - `LIBXML_NO_XXE` is undefined on both PHP builds (it needs libxml 2.13); `LIBXML_NONET`, `LIBXML_NOENT`, `LIBXML_DTDLOAD`, `LIBXML_DTDATTR`, `LIBXML_DTDVALID`, `LIBXML_XINCLUDE`, `LIBXML_PARSEHUGE`, `LIBXML_NOBLANKS`, `LIBXML_NOCDATA` are defined.
 **Measurements, 23 September 2026**, on the same builds, before the code of the brick is written.
 
