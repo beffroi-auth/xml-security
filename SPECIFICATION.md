@@ -320,7 +320,9 @@ A `RefusedXml` is input the brick refuses; a consumer catches the base class whe
    - a **text** or **CDATA section** node: nothing, the byte bound covers it; whitespace-only text nodes are kept;
    - a **comment** or **processing instruction**: nothing, they are inert and Canonical XML covers them where it says so;
    - an **entity reference**, or any other node type: `DoctypeRefused`, only a DTD can produce one.
-7. **Result.** A `Document` holding the `Dom\XMLDocument` and the index, registered in the brick's `WeakMap` so that `Document::owning()` recognises every node of it. The map is weak: a document the caller drops is forgotten.
+7. **Result.** A `Document` holding the `Dom\XMLDocument` and the index, registered in the brick's `WeakMap` (`Internal\Registry`) so that `Document::owning()` recognises every node of it. The map is weak: a document the caller drops is forgotten.
+
+Steps 5 and 6 run in `Internal\Inspector` on the parsed `Dom\XMLDocument`, so that the tests reach every rule with a document parsed outside the loader, DOCTYPE, XML 1.1 and unbound prefix included, which I-1 and I-3 stop before those steps through `load()`; Infection holds that class to the same bar as `Loader` (section 9).
 
 Whitespace-only text nodes, CDATA sections and comments are kept exactly as parsed so that the canonical form of what was loaded is the canonical form of what was sent. The parser applies the end-of-line normalisation and the attribute value normalisation of XML 1.0 §2.11 and §3.3.3; the brick adds no normalisation of its own.
 
@@ -407,7 +409,7 @@ The property reads `textContent`, `nodeValue` and `innerHTML` on an element cann
 
 ## 9. Acceptance
 
-The brick is accepted when every case below is a green test in CI on PHP 8.4 and 8.5, when Infection leaves no escaped mutant in `Loader`, `Canonicalizer`, `Text`, `Children` and `CanonicalXml`, and when the real documents of 9.4 load. The other half of sub-spike 8a's judge, `xml-dsig` verifying what SimpleSAMLphp signs and the reverse, exercises the contract of 6.6 and is specified with that brick.
+The brick is accepted when every case below is a green test in CI on PHP 8.4 and 8.5, when Infection leaves no escaped mutant in `Loader`, `Internal\Inspector`, `Canonicalizer`, `Text`, `Children` and `CanonicalXml`, and when the real documents of 9.4 load. The other half of sub-spike 8a's judge, `xml-dsig` verifying what SimpleSAMLphp signs and the reverse, exercises the contract of 6.6 and is specified with that brick.
 
 ### 9.1 Canonicalization vectors
 
@@ -484,7 +486,7 @@ One fixture file per case under `tests/Fixture/hostile/`, each loaded through th
 | Enveloped exclusion of `ds:Signature` under the root | canonical bytes identical to the XPath node-set form (the fixture carries both), the document unchanged afterwards; the same with the excluded element as first child, as last child, and with two excluded elements |
 | A failing canonicalization with exclusions (relative namespace elsewhere in the apex) | `CanonicalizationFailed`, and the excluded elements are back in place |
 | `Document::owning()` on a node of a loaded document, of a created document, and of a re-loaded canonical form | the right `Document` each time |
-| A `Document` dropped by the caller | the `WeakMap` entry is gone (`WeakMap::count()`) |
+| A `Document` dropped by the caller | the `WeakMap` entry is gone (`Internal\Registry::count()`) |
 | `DocumentFactory::create()` then `Serializer::serialize()` | `<?xml version="1.0" encoding="UTF-8"?>` on the first line, the root with its namespace declaration on the second, no indentation |
 | Every serialized document of the fixtures | loads again through the `Loader` without refusal, and canonicalizes to the same bytes as before serialization |
 
@@ -514,7 +516,9 @@ Until the sub-spike opens, the repository holds this file. When it opens, it tak
 ```
 composer.json          beffroi-php/saml-xml-core, MIT, php >=8.4, ext-dom, ext-libxml; PSR-4 Beffroi\Xml\Core\ => src/
 src/                   Name, Loader, Limits, Document, IdAttribute, IdAttributes, CanonicalizationMethod, InclusiveNamespaces,
-                       Canonicalizer, CanonicalXml, Text, Children, Attributes, DocumentFactory, Serializer, Exception/
+                       Canonicalizer, CanonicalXml, Text, Children, Attributes, DocumentFactory, Serializer, Exception/,
+                       Internal/ (Inspector: the rules of 6.1 steps 5 and 6 on a parsed document; Registry: the WeakMap
+                       of 6.1 step 7), marked @internal, outside the compatibility promise of section 5
 tests/                 Unit/ (one class per class of src/), Fixture/ (9.1 to 9.4)
 castor.php, .castor/   the tasks: phpunit, phpstan, mago-format, mago-lint, rector, infect, prepare-pr
 .ci-tools/             phpstan.neon (level max, strict rules, deprecation rules, phpunit, banned-code with the list of section 8),
