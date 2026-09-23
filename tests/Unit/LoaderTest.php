@@ -171,6 +171,55 @@ final class LoaderTest extends TestCase
     }
 
     /**
+     * Section 9.1, I-1: the originals of Canonical XML 1.0 §3 that carry a document type declaration.
+     */
+    #[Test]
+    #[DataProvider('provideOriginalVectorsWithADoctype')]
+    public function itRefusesTheOriginalVectorsThatCarryADoctype(string $fixture): void
+    {
+        // Given
+        $bytes = Fixtures::bytes($fixture);
+
+        // Then
+        $this->expectException(DoctypeRefused::class);
+        $this->expectExceptionMessageIs('The input contains a document type declaration (I-1).');
+
+        // When
+        $this->loader->load($bytes);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function provideOriginalVectorsWithADoctype(): iterable
+    {
+        yield '§3.1 PIs, comments and outside of document element' => ['hostile/c14n-3.1-original-doctype-refused.xml'];
+        yield '§3.3 start and end tags' => ['hostile/c14n-3.3-original-doctype-refused.xml'];
+        yield '§3.4 character modifications and character references' => [
+            'hostile/c14n-3.4-original-doctype-refused.xml',
+        ];
+        yield '§3.5 entity references, refused by design' => ['hostile/c14n-3.5-original-doctype-refused.xml'];
+        yield '§3.7 document subsets, refused by design' => ['hostile/c14n-3.7-original-doctype-refused.xml'];
+    }
+
+    /**
+     * Section 9.1, I-5: the original of Canonical XML 1.0 §3.6 declares ISO-8859-1.
+     */
+    #[Test]
+    public function itRefusesTheOriginalVectorThatDeclaresIso88591(): void
+    {
+        // Given
+        $bytes = Fixtures::bytes('hostile/c14n-3.6-original-iso-8859-1-refused.xml');
+
+        // Then
+        $this->expectException(EncodingRefused::class);
+        $this->expectExceptionMessageIs('The declared encoding is not UTF-8 (I-5).');
+
+        // When
+        $this->loader->load($bytes);
+    }
+
+    /**
      * §9.2 row 6, I-7: one byte over maxBytes, before anything else reads the input.
      */
     #[Test]

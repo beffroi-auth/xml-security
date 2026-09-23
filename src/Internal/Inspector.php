@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Core\Internal;
 
-use Dom\DocumentType;
-use Beffroi\Xml\Core\IdAttribute;
+use function array_any;
 use function array_key_exists;
 use function array_pop;
 use function array_push;
@@ -19,10 +18,12 @@ use Beffroi\Xml\Core\Exception\MalformedXml;
 use Beffroi\Xml\Core\Exception\NamespaceRefused;
 use Beffroi\Xml\Core\Exception\RefusedXml;
 use Beffroi\Xml\Core\Exception\XmlVersionRefused;
+use Beffroi\Xml\Core\IdAttribute;
 use Beffroi\Xml\Core\IdAttributes;
 use Beffroi\Xml\Core\Limits;
 use Dom\Attr;
 use Dom\CharacterData;
+use Dom\DocumentType;
 use Dom\Element;
 use Dom\Node;
 use Dom\XMLDocument;

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Core\Tests\Unit;
 
+use Beffroi\Xml\Core\CanonicalizationMethod;
+use Beffroi\Xml\Core\Canonicalizer;
 use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Core\Exception\UnknownId;
@@ -101,6 +103,29 @@ final class DocumentTest extends TestCase
         static::assertSame($document, Document::owning($assertion));
         static::assertSame($document, Document::owning($attribute));
         static::assertSame($document, Document::owning($text));
+    }
+
+    /**
+     * §9.3 row 14, section 6.6: owning() on the root of a re-loaded canonical form is the new Document, not the
+     * document the form was rendered from.
+     */
+    #[Test]
+    public function itIsTheOwnerOfTheRootOfAReloadedCanonicalForm(): void
+    {
+        // Given
+        $original = Loaded::fixture('behaviour/response-with-assertion.xml');
+        $canonical = new Canonicalizer()->canonicalize(
+            $original->elementById('_assertion'),
+            CanonicalizationMethod::Exclusive,
+        );
+
+        // When
+        $reloaded = Loaded::document($canonical->bytes);
+
+        // Then
+        static::assertSame($reloaded, Document::owning($reloaded->root()));
+        static::assertNotSame($original, Document::owning($reloaded->root()));
+        static::assertSame('Assertion', $reloaded->root()->localName);
     }
 
     /**

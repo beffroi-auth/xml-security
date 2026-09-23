@@ -37,7 +37,7 @@ final class NameTest extends TestCase
     public function itReadsTheNamespaceUriAndTheLocalNameOfAnElement(): void
     {
         // Given
-        $element = Loaded::root('<x:Assertion xmlns:x="urn:oasis:names:tc:SAML:2.0:assertion"/>');
+        $element = Loaded::document('<x:Assertion xmlns:x="urn:oasis:names:tc:SAML:2.0:assertion"/>')->root();
 
         // When
         $name = Name::of($element);
@@ -53,7 +53,7 @@ final class NameTest extends TestCase
     public function itReadsAnUnprefixedAttributeAsInNoNamespace(): void
     {
         // Given
-        $element = Loaded::root('<Assertion xmlns="urn:oasis:names:tc:SAML:2.0:assertion" ID="_a"/>');
+        $element = Loaded::document('<Assertion xmlns="urn:oasis:names:tc:SAML:2.0:assertion" ID="_a"/>')->root();
         $attribute = $element->getAttributeNodeNS(null, 'ID');
         static::assertNotNull($attribute);
 
@@ -71,7 +71,7 @@ final class NameTest extends TestCase
     public function itMatchesAnElementOnNamespaceUriAndLocalNameNeverThePrefix(): void
     {
         // Given
-        $element = Loaded::root('<x:Assertion xmlns:x="urn:oasis:names:tc:SAML:2.0:assertion"/>');
+        $element = Loaded::document('<x:Assertion xmlns:x="urn:oasis:names:tc:SAML:2.0:assertion"/>')->root();
 
         // When / Then
         static::assertTrue(new Name(Stack::SAML_ASSERTION, 'Assertion')->matches($element));
@@ -84,7 +84,7 @@ final class NameTest extends TestCase
     public function itDoesNotMatchTheSameLocalNameInAnotherNamespace(): void
     {
         // Given
-        $element = Loaded::root('<evil:Assertion xmlns:evil="urn:evil"/>');
+        $element = Loaded::document('<evil:Assertion xmlns:evil="urn:evil"/>')->root();
 
         // When / Then
         static::assertFalse(new Name(Stack::SAML_ASSERTION, 'Assertion')->matches($element));
@@ -97,7 +97,7 @@ final class NameTest extends TestCase
     public function itDoesNotMatchAnotherLocalNameInTheSameNamespace(): void
     {
         // Given
-        $element = Loaded::root('<saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"/>');
+        $element = Loaded::document('<saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"/>')->root();
 
         // When / Then
         static::assertFalse(new Name(Stack::SAML_ASSERTION, 'Assertion')->matches($element));
@@ -110,7 +110,7 @@ final class NameTest extends TestCase
     public function itMatchesAnAttribute(): void
     {
         // Given
-        $element = Loaded::root('<a xmlns:p="urn:p" p:lang="fr"/>');
+        $element = Loaded::document('<a xmlns:p="urn:p" p:lang="fr"/>')->root();
         $attribute = $element->getAttributeNodeNS('urn:p', 'lang');
         static::assertNotNull($attribute);
 
