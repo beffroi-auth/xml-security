@@ -521,18 +521,27 @@ Once the corpus above is green, each row of section 3 is attacked with inputs th
 Until the sub-spike opens, the repository holds this file. When it opens, it takes the shape of the maintainer's other libraries:
 
 ```
-composer.json          beffroi-php/saml-xml-core, MIT, php >=8.4, ext-dom, ext-libxml; PSR-4 Beffroi\Xml\Core\ => src/
+composer.json          beffroi-php/saml-xml-core, MIT, php >=8.4, ext-dom, ext-libxml; PSR-4 Beffroi\Xml\Core\ => src/,
+                       Beffroi\Xml\Core\Tests\ => tests/; no dependency, dev ones included: the tools live in the phpqa image
 src/                   Name, Loader, Limits, Document, IdAttribute, IdAttributes, CanonicalizationMethod, InclusiveNamespaces,
                        Canonicalizer, CanonicalXml, Text, Children, Attributes, DocumentFactory, Serializer, Exception/,
-                       Internal/ (Inspector: the rules of 6.1 steps 5 and 6 on a parsed document; Registry: the WeakMap
+                       Internal/ (Inspector: the rules of 6.1 steps 5 and 6 on a parsed document; Registry: the two weak maps
                        of 6.1 step 7), marked @internal, outside the compatibility promise of section 5
-tests/                 Unit/ (one class per class of src/), Fixture/ (9.1 to 9.4)
-castor.php, .castor/   the tasks: phpunit, phpstan, mago-format, mago-lint, rector, infect, prepare-pr
-.ci-tools/             phpstan.neon (level max, strict rules, deprecation rules, phpunit, banned-code with the list of section 8),
-                       rector.php, phpunit.xml.dist, infection.json5
+tests/                 Unit/ (one class per class of src/, plus SourceGuardTest, TraceabilityTest, AdversarialTest,
+                       RealDocumentsTest, PerformanceTest, and Regression/ with one class per row of section 3),
+                       Support/ (the loading helpers, the SAML stack's ID attributes, the fixture reader, the direct parse
+                       for foreign documents), PhpStan/ (the two rules of section 8), Fixture/ (canonical, hostile,
+                       behaviour, real: 9.1 to 9.4 and the adversarial pass of 9.7, each canonical directory with a README)
+castor.php, .castor/   the tasks: phpunit, phpstan, mago-format, mago-lint, rector, lint, composer-validate, infect, libxml,
+                       prepare-pr
+.ci-tools/             phpstan.neon (level max, strict rules, deprecation rules, phpunit, banned-code for the functions of
+                       section 8, the two rules of tests/PhpStan for the rest), rector.php, phpunit.xml.dist
+infection.json.dist    at the root, where Infection resolves the source directories of its git diff
 mago.toml              the formatter and the linter
-.github/workflows/     ci.yml on ghcr.io/spomky-labs/phpqa, PHP 8.4 and 8.5: format, lint, rector, phpstan, phpunit with coverage,
-                       infection on the diff; dependency-review.yml; scorecards.yml; release-on-milestone-closed.yml
+.github/workflows/     ci.yml on ghcr.io/spomky-labs/phpqa, PHP 8.4 and 8.5: format, lint, rector, phpstan, composer, syntax,
+                       phpunit with coverage, infection on the files of section 9 then on the diff, every PHP job printing
+                       the libxml version and whether LIBXML_NO_XXE is defined; dependency-review.yml; scorecards.yml;
+                       release-on-milestone-closed.yml
 LICENSE, README.md, SECURITY.md, CODE_OF_CONDUCT.md
 ```
 
