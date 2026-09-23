@@ -4,19 +4,25 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Core\Tests\Unit;
 
+use Beffroi\Xml\Core\CanonicalizationMethod;
+use Beffroi\Xml\Core\Canonicalizer;
 use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\DocumentFactory;
 use Beffroi\Xml\Core\Name;
+use Beffroi\Xml\Core\Serializer;
+use Beffroi\Xml\Core\Tests\Support\Loaded;
 use Dom\XMLDocument;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Section 6.5: a new XML 1.0, UTF-8 document whose root is created with createElementNS(), registered so that the
- * brick recognises what a consumer builds under it.
+ * Section 6.5: a new XML 1.0, UTF-8 document whose root is created with createElementNS(), its namespace declared
+ * on it as an attribute, registered so that the brick recognises what a consumer builds under it.
  */
 final class DocumentFactoryTest extends TestCase
 {
+    private const string XMLNS = 'http://www.w3.org/2000/xmlns/';
+
     private DocumentFactory $factory;
 
     protected function setUp(): void
@@ -122,5 +128,85 @@ final class DocumentFactoryTest extends TestCase
         static::assertNotSame($first, $second);
         static::assertSame($first, Document::owning($first->root()));
         static::assertSame($second, Document::owning($second->root()));
+    }
+
+    /**
+     * Section 6.5: the namespace of a prefixed root is declared on it as an xmlns:prefix attribute, and nothing else
+     * is.
+     */
+    #[Test]
+    public function itDeclaresTheNamespaceOfARootWithAPrefix(): void
+    {
+        // When
+        $root = $this->factory
+            ->create(new Name('urn:oasis:names:tc:SAML:2.0:protocol', 'AuthnRequest'), 'samlp')
+            ->root();
+
+        // Then
+        static::assertSame('urn:oasis:names:tc:SAML:2.0:protocol', $root->getAttributeNS(self::XMLNS, 'samlp'));
+        static::assertSame(1, $root->attributes->length);
+    }
+
+    /**
+     * Section 6.5: the namespace of a root without a prefix is declared on it as an xmlns attribute; C14N() renders
+     * the declarations that exist as attributes and would lose the namespace otherwise (measured, section 13).
+     */
+    #[Test]
+    public function itDeclaresTheDefaultNamespaceOfARootWithoutAPrefix(): void
+    {
+        // When
+        $root = $this->factory->create(new Name('urn:a', 'a'))->root();
+
+        // Then
+        static::assertSame('urn:a', $root->getAttributeNS(self::XMLNS, 'xmlns'));
+        static::assertSame(1, $root->attributes->length);
+    }
+
+    /**
+     * Section 6.5: a root in no namespace declares nothing.
+     */
+    #[Test]
+    public function itDeclaresNothingOnARootInNoNamespace(): void
+    {
+        // When
+        $root = $this->factory->create(new Name(null, 'a'))->root();
+
+        // Then
+        static::assertSame(0, $root->attributes->length);
+    }
+
+    /**
+     * §9.3 row 18, section 6.5: a document built without a prefix canonicalizes with its declaration, and to the
+     * same bytes after serialize() then load(); the signature computed before sending is the one the peer verifies.
+     */
+    #[Test]
+    public function itsRootCanonicalizesWithItsNamespaceBeforeAndAfterARoundTrip(): void
+    {
+        // Given
+        $canonicalizer = new Canonicalizer();
+        $document = $this->factory->create(new Name('urn:oasis:names:tc:SAML:2.0:protocol', 'Response'));
+        $root = $document->root();
+        $xml = $root->ownerDocument;
+        static::assertNotNull($xml);
+        $root->appendChild($xml->createElementNS(
+            'urn:oasis:names:tc:SAML:2.0:assertion',
+            'saml:Issuer',
+        ))->appendChild($xml->createTextNode('https://idp.example.org'));
+
+        // When
+        $before = $canonicalizer->canonicalize($root, CanonicalizationMethod::Exclusive)->bytes;
+        $reloaded = Loaded::document(new Serializer()->serialize($document));
+
+        // Then
+        static::assertSame(
+            '<Response xmlns="urn:oasis:names:tc:SAML:2.0:protocol">'
+            . '<saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://idp.example.org</saml:Issuer>'
+            . '</Response>',
+            $before,
+        );
+        static::assertSame(
+            $before,
+            $canonicalizer->canonicalize($reloaded->root(), CanonicalizationMethod::Exclusive)->bytes,
+        );
     }
 }

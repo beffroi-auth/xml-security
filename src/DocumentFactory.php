@@ -8,15 +8,15 @@ use Beffroi\Xml\Core\Internal\Registry;
 use Dom\XMLDocument;
 
 /**
- * A new document for what a consumer builds (section 6.5): XML 1.0, UTF-8, a root created with createElementNS(),
- * registered so that the brick recognises every node built under it. Consumers build with the Dom API; the brick
- * does not wrap the DOM.
+ * The only place of the stack that calls createEmpty() (section 6.5): a new XML 1.0, UTF-8 document whose root is
+ * created with createElementNS() and registered, so that the brick recognises what a consumer builds under it. The
+ * namespace of the root is declared on it as an attribute: C14N() renders the declarations that exist as
+ * attributes, and a default namespace given to createElementNS() alone is invisible to it (measured, section 13).
  */
 final readonly class DocumentFactory
 {
-    /**
-     * A new XML 1.0, UTF-8 document whose root is $root, created with createElementNS() and the given prefix.
-     */
+    private const string XMLNS = 'http://www.w3.org/2000/xmlns/';
+
     public function create(Name $root, ?string $prefix = null): Document
     {
         $xml = XMLDocument::createEmpty();
@@ -24,6 +24,9 @@ final readonly class DocumentFactory
             $root->namespace,
             $prefix === null ? $root->local : $prefix . ':' . $root->local,
         );
+        if ($root->namespace !== null) {
+            $element->setAttributeNS(self::XMLNS, $prefix === null ? 'xmlns' : 'xmlns:' . $prefix, $root->namespace);
+        }
         $xml->appendChild($element);
 
         return Registry::register($xml, new Document($element, []));
