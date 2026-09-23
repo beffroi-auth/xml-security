@@ -73,7 +73,7 @@ Each invariant is code, never a constructor option or a flag, and has at least o
 - **I-9. Lookup by index, never by query.** `Document::elementById()` reads the index built at load. `getElementById()` and `setIdAttribute*()` are never called, and no XPath expression exists in the brick.
 - **I-10. Names are namespace URI and local name.** Matching an element or an attribute compares its namespace URI and its local name (`Name`); a prefix is never compared.
 - **I-11. Children only.** The brick offers direct-child navigation (`Children`) and nothing that searches descendants: `getElementsByTagName*()`, `querySelector*()` and XPath are never called.
-- **I-12. Text is the concatenation of the text and CDATA children.** `Text::of()` returns them in document order, skipping comments and processing instructions; a child element is a refusal (`MixedContent`). This is the value that Canonical XML without comments signs.
+- **I-12. Text is the concatenation of the text and CDATA children.** `Text::of()` returns them in document order, skipping comments and processing instructions; a child element, or any child of another type, is a refusal (`MixedContent`). This is the value that Canonical XML without comments signs.
 - **I-13. Nothing canonicalizes to nothing.** `C14N()` returning `false` is an exception; a `CanonicalXml` refuses the empty string in its constructor. The brick contains exactly one call to `C14N()`.
 - **I-14. Subtree exclusion is structural.** An element left out of a canonical form (the enveloped signature case) is detached from its parent before the call and reinserted at the same position in a `finally`. No XPath node set is built.
 - **I-15. Faithful serialization.** A document is serialized with `formatOutput` false, an XML declaration and UTF-8; whitespace text nodes are kept at load and at serialization.
@@ -229,7 +229,7 @@ The set of methods is an enumeration because the protocol fixes it: the four are
 ```php
 final class Text
 {
-    /** @throws MixedContent when $element has an element child */
+    /** @throws MixedContent when $element has a child that is neither text, CDATA, comment nor processing instruction */
     public static function of(\Dom\Element $element): string;
 }
 
@@ -347,7 +347,7 @@ What canonicalization renders on the apex is what the specification says and wha
 
 ### 6.4 Reading
 
-`Text::of()` walks the direct children of the element: `Dom\Text` and `Dom\CDATASection` nodes are concatenated in order, `Dom\Comment` and `Dom\ProcessingInstruction` nodes are skipped, a `Dom\Element` child throws `MixedContent`. For `<NameID>user@example.com<!---->.evil.com</NameID>` the result is `user@example.com.evil.com`, which is the value that the signature over the canonical form without comments covers; `firstChild->nodeValue` would say `user@example.com`, and `textContent` on `<n>user<x>@evil</x>@example.com</n>` would say `user@evil@example.com`. Neither is used. Trimming is the consumer's decision, not the brick's.
+`Text::of()` walks the direct children of the element: `Dom\Text` and `Dom\CDATASection` nodes are concatenated in order, `Dom\Comment` and `Dom\ProcessingInstruction` nodes are skipped, a `Dom\Element` child throws `MixedContent`, and so does any other child, an entity reference of a document the brick did not load among them: a text the brick cannot read whole is a text it does not read at all, which is the comment-split class of section 3. For `<NameID>user@example.com<!---->.evil.com</NameID>` the result is `user@example.com.evil.com`, which is the value that the signature over the canonical form without comments covers; `firstChild->nodeValue` would say `user@example.com`, and `textContent` on `<n>user<x>@evil</x>@example.com</n>` would say `user@evil@example.com`. Neither is used. Trimming is the consumer's decision, not the brick's.
 
 `Children::*` look at the direct element children of one parent and match with `Name::matches()`. `one()` throws `MissingChild` when there is none and `AmbiguousChild` when there are two or more; `optional()` throws `AmbiguousChild` for two or more and returns `null` for none. A `saml:Assertion` wrapped inside a `samlp:Extensions` element is not a child of the response and is never found by a consumer that navigates from the root, which is what a signature wrapping relies on.
 
