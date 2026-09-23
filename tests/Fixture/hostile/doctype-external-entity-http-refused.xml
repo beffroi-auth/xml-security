@@ -1,0 +1,2 @@
+<!DOCTYPE doc [<!ENTITY x SYSTEM "http://example.invalid/x">]>
+<doc>&x;</doc>
