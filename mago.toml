@@ -65,6 +65,14 @@ no-shorthand-ternary = { exclude = ["castor.php", ".castor/**"] }
 # The castor tasks take boolean options (--diff, --all, --reuse-coverage); the rule stands in src/ and tests/.
 no-boolean-flag-parameter = { exclude = ["castor.php", ".castor/**"] }
 
+# Maintainability metrics. The specification fixes the six parameters of Limits and the branches of the traversal
+# of Inspector; a test class has one method per behaviour, and the hostile corpus alone is thirty of them.
+cyclomatic-complexity = { enabled = false }
+halstead = { enabled = false }
+kan-defect = { enabled = false }
+excessive-parameter-list = { enabled = false }
+too-many-methods = { enabled = false }
+
 # A literal argument does not become a named argument: `new Name(null, 'ID')` reads as the specification writes it.
 literal-named-argument = { enabled = false }
 
