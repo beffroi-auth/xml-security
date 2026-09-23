@@ -1,0 +1,52 @@
+name: Scorecards supply-chain security
+
+on:
+  schedule:
+    - cron: '34 4 * * 6'
+  push:
+    branches:
+      - "main"
+
+# Declare default permissions as read only.
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecards analysis
+    # The action only supports the default branch, so skip the other maintained branches.
+    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to upload the results to code-scanning dashboard.
+      security-events: write
+      # Used to receive a badge.
+      id-token: write
+      # Needed for private repositories.
+      contents: read
+      actions: read
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: "Run analysis"
+        uses: ossf/scorecard-action@v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # For private repositories, publish_results is automatically false whatever the value entered here.
+          publish_results: true
+
+      - name: "Upload artifact"
+        uses: actions/upload-artifact@v7
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: "Upload to code-scanning"
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
