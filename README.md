@@ -81,6 +81,10 @@ What a verifier hands to its consumer is the re-parse of the canonical bytes it 
 gives one root, the signed element with every namespace and inherited `xml:*` attribute the form rendered, and no
 wrapper, no sibling, no second assertion.
 
+What a signer hashes is the same thing seen from the other side: serialize what you built, load the bytes, canonicalize
+the loaded element. What is hashed is what the peer will parse, whatever `C14N()` renders on a built tree; the
+declaration the factory adds and the refusals below are the defence in depth behind that rule.
+
 ## Writing
 
 ```php
