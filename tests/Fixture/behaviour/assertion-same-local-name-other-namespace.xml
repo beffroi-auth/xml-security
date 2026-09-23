@@ -1,0 +1,3 @@
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:evil="urn:evil" ID="_r">
+  <evil:Assertion ID="_evil"/>
+</samlp:Response>

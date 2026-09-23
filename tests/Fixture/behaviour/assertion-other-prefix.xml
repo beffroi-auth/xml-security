@@ -1,0 +1,3 @@
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:x="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r">
+  <x:Assertion ID="_a"/>
+</samlp:Response>
