@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Core\Tests\PhpStan;
 
+use function implode;
 use PhpParser\Node;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\FuncCall;
@@ -18,6 +19,9 @@ use PHPStan\Analyser\Scope;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
+use function sprintf;
+use function str_starts_with;
+use function strtolower;
 
 /**
  * Section 8 of the specification: the methods of the Dom API never called, and the calls allowed in one class each

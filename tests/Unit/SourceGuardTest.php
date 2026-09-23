@@ -4,13 +4,25 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Core\Tests\Unit;
 
-use SplFileInfo;
+use function array_diff_key;
+use function dirname;
+use function file_get_contents;
+use function is_file;
+use function ksort;
 use PhpToken;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use SplFileInfo;
+use function sprintf;
+use function strlen;
+use function strtolower;
+use function substr;
+use function substr_count;
+use const T_CONSTANT_ENCAPSED_STRING;
+use const T_ENCAPSED_AND_WHITESPACE;
 
 /**
  * Section 8 of the specification, the layer under PHPStan: the tokens never written in src/, including the property
@@ -32,7 +44,7 @@ final class SourceGuardTest extends TestCase
         $occurrences = $this->occurrences($token);
 
         // Then
-        self::assertSame([], $occurrences, sprintf('"%s" is banned by section 8 of the specification.', $token));
+        static::assertSame([], $occurrences, sprintf('"%s" is banned by section 8 of the specification.', $token));
     }
 
     /**
@@ -112,13 +124,17 @@ final class SourceGuardTest extends TestCase
 
         // Then
         $elsewhere = array_diff_key($occurrences, [$file => true]);
-        self::assertSame(
+        static::assertSame(
             [],
             $elsewhere,
             sprintf('"%s" is confined to %s by section 8 of the specification.', $token, $file),
         );
         if (is_file($this->sourceDirectory() . '/' . $file)) {
-            self::assertSame([$file => 1], $occurrences, sprintf('"%s" is called exactly once, in %s.', $token, $file));
+            static::assertSame(
+                [$file => 1],
+                $occurrences,
+                sprintf('"%s" is called exactly once, in %s.', $token, $file),
+            );
         }
     }
 
@@ -168,7 +184,7 @@ final class SourceGuardTest extends TestCase
                 continue;
             }
             $source = file_get_contents($file->getPathname());
-            self::assertNotFalse($source);
+            static::assertNotFalse($source);
             $code = '';
             foreach (PhpToken::tokenize($source) as $phpToken) {
                 if (

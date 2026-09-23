@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Core\Tests\PhpStan;
 
-use PhpParser\Node\UseItem;
+use function array_map;
+use function ltrim;
 use PhpParser\Node;
 use PhpParser\Node\Name;
 use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\GroupUse;
 use PhpParser\Node\Stmt\Use_;
+use PhpParser\Node\UseItem;
 use PhpParser\NodeFinder;
 use PHPStan\Analyser\Scope;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
+use function sprintf;
+use function strtolower;
 
 /**
  * Section 8 of the specification: the classes and the constants never used, in the brick and in its consumers.
