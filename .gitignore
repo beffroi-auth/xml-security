@@ -1,0 +1,12 @@
+/vendor/
+/composer.lock
+/tmp-phpqa/
+/.ci-tools/coverage/
+/.ci-tools/.phpunit.cache/
+/.ci-tools/infection.txt
+/infection.json
+/.phpunit.cache/
+/.phpunit.result.cache
+
+# graft's local graph cache: regenerable, not committed (run `graft build`).
+graft/
