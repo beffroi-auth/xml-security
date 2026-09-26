@@ -20,13 +20,13 @@ use function Castor\run;
  * and 6 to Internal\Inspector, which is why that file is held to the same bar.
  */
 const INFECTION_STRICT_FILES = [
-    'src/Loader.php',
-    'src/Internal/Inspector.php',
-    'src/Canonicalizer.php',
-    'src/Text.php',
-    'src/Children.php',
-    'src/CanonicalXml.php',
-    'src/Serializer.php',
+    'src/Core/Loader.php',
+    'src/Core/Internal/Inspector.php',
+    'src/Core/Canonicalizer.php',
+    'src/Core/Text.php',
+    'src/Core/Children.php',
+    'src/Core/CanonicalXml.php',
+    'src/Core/Serializer.php',
 ];
 
 /**

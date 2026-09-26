@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Beffroi\Xml\Core\Tests\PhpStan;
+namespace Beffroi\Xml\Tests\PhpStan;
 
 use function implode;
 use PhpParser\Node;
