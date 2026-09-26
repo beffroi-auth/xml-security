@@ -113,7 +113,7 @@ final class SourceGuardTest extends TestCase
 
     /**
      * Section 8 (I-4, I-13, I-15): createFromString() in Loader, createEmpty() in DocumentFactory, C14N() in
-     * Canonicalizer, saveXml() in Serializer, exactly once each and nowhere else.
+     * Canonicalizer, saveXml() in Serializer, exactly once each and nowhere else under src/, whatever the namespace.
      */
     #[Test]
     #[DataProvider('provideConfinedCalls')]
@@ -143,10 +143,10 @@ final class SourceGuardTest extends TestCase
      */
     public static function provideConfinedCalls(): iterable
     {
-        yield 'createFromString() in Loader' => ['createFromString(', 'Loader.php'];
-        yield 'createEmpty() in DocumentFactory' => ['createEmpty(', 'DocumentFactory.php'];
-        yield 'C14N() in Canonicalizer' => ['C14N(', 'Canonicalizer.php'];
-        yield 'saveXml() in Serializer' => ['saveXml(', 'Serializer.php'];
+        yield 'createFromString() in Loader' => ['createFromString(', 'Core/Loader.php'];
+        yield 'createEmpty() in DocumentFactory' => ['createEmpty(', 'Core/DocumentFactory.php'];
+        yield 'C14N() in Canonicalizer' => ['C14N(', 'Core/Canonicalizer.php'];
+        yield 'saveXml() in Serializer' => ['saveXml(', 'Core/Serializer.php'];
     }
 
     /**
