@@ -1,11 +1,11 @@
 # Security policy
 
-This brick is the parser boundary of an identity provider: what it lets through is what a signature is verified
+The `Core` namespace of this package is the parser boundary of an identity provider: what it lets through is what a signature is verified
 over, and a flaw here is a flaw in every application that trusts a SAML assertion.
 
 ## Reporting
 
-Report privately through [GitHub security advisories](https://github.com/beffroi-php/saml-xml-core/security/advisories/new).
+Report privately through [GitHub security advisories](https://github.com/beffroi-php/xml-security/security/advisories/new).
 Do not open a public issue, do not discuss it in a pull request.
 
 You will get an acknowledgement within 72 hours, and a fix or a mitigation plan as fast as the severity requires.
