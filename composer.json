@@ -1,9 +1,9 @@
 {
-    "name": "beffroi-php/saml-xml-core",
-    "description": "The xml-core brick of the SAML 2.0 stack: a safe DOM for XML about to be signed, verified, encrypted or decrypted. Hardened loading, one ID space per document, canonicalization that never hashes nothing, text read as the signer meant it, faithful serialization.",
+    "name": "beffroi-php/xml-security",
+    "description": "XML security for PHP, in one package and three namespaces: Core, a safe DOM for XML about to be signed, verified, encrypted or decrypted (hardened loading, one ID space per document, canonicalization that never hashes nothing, faithful serialization); Dsig, XML Signature; Enc, XML Encryption.",
     "type": "library",
     "license": "MIT",
-    "homepage": "https://github.com/beffroi-php/saml-xml-core",
+    "homepage": "https://github.com/beffroi-php/xml-security",
     "keywords": [
         "xml",
         "dom",
@@ -12,6 +12,8 @@
         "c14n",
         "xml-security",
         "xmldsig",
+        "xml-signature",
+        "xml-encryption",
         "saml"
     ],
     "authors": [
@@ -26,12 +28,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Beffroi\\Xml\\Core\\": "src/"
+            "Beffroi\\Xml\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Beffroi\\Xml\\Core\\Tests\\": "tests/"
+            "Beffroi\\Xml\\Tests\\": "tests/"
         }
     },
     "config": {

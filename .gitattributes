@@ -1,7 +1,7 @@
 * text=auto
 
 # The fixtures are byte-exact: no end-of-line conversion, ever.
-/tests/Fixture/** -text
+/tests/Core/Fixture/** -text
 
 /.castor export-ignore
 /.ci-tools export-ignore
