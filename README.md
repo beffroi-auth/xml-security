@@ -1,18 +1,22 @@
-# beffroi-php/saml-xml-core
+# beffroi-php/xml-security
 
-The `xml-core` brick of a SAML 2.0 stack: a safe DOM for XML that is about to be signed, verified, encrypted or
-decrypted. It parses without being attacked, finds an element by its ID without ambiguity, canonicalizes without
-ever hashing nothing, reads text as the signer meant it, and serializes what was built. It knows no signature, no
-cipher, no SAML and no HTTP: `xml-dsig`, `xml-enc` and `saml2-model` are built on it, and so can any XML Signature or
-XML Encryption profile.
+XML security for PHP, in one package and three namespaces: `Core`, a safe DOM for XML that is about to be signed,
+verified, encrypted or decrypted; `Dsig`, XML Signature; `Enc`, XML Encryption. `Core` is built; `Dsig` and `Enc`
+follow, each under its own specification, and reach the DOM and libxml through `Core` only, which Deptrac and the
+PHPStan rules of this repository enforce.
 
-[`SPECIFICATION.md`](SPECIFICATION.md) is the law of this repository: the code conforms to it, or the document
-changes first. This file is the short version.
+`Core`, the brick this file describes, parses without being attacked, finds an element by its ID without ambiguity,
+canonicalizes without ever hashing nothing, reads text as the signer meant it, and serializes what was built. It
+knows no signature, no cipher, no SAML and no HTTP: `Dsig`, `Enc` and `saml2-model` are built on it, and so can any
+XML Signature or XML Encryption profile.
 
-Requires PHP 8.4 or later with `ext-dom` (the `Dom\` API) and `ext-libxml`. Nothing else, ever.
+[`spec/core.md`](spec/core.md) is the law of the `Core` namespace: the code conforms to it, or the document changes
+first. This file is its short version.
+
+`Core` requires PHP 8.4 or later with `ext-dom` (the `Dom\` API) and `ext-libxml`, and calls nothing else.
 
 ```bash
-composer require beffroi-php/saml-xml-core
+composer require beffroi-php/xml-security
 ```
 
 ## Loading
@@ -142,7 +146,8 @@ read: `Text::of()` is the way.
 ```bash
 composer install
 castor phpunit        # PHPUnit 13 with coverage
-castor prepare-pr     # Mago lint and format, Rector, PHPStan at level max with no baseline, syntax, composer
+castor prepare-pr     # Mago lint and format, Rector, PHPStan at level max with no baseline, Deptrac, syntax, composer
+castor deptrac        # Dsig and Enc depend on Core, never the reverse, never on each other
 castor infect         # Infection on the files of section 9, no escaped mutant allowed
 castor infect --diff  # the lines changed since origin/main, the shape of every CI run on the rest
 castor libxml         # the PHP and libxml versions, and whether LIBXML_NO_XXE is defined on this build
