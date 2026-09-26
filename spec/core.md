@@ -1,15 +1,15 @@
-# saml-xml-core, specification
+# xml-security, the `Core` namespace: specification
 
-The `xml-core` brick of the SAML 2.0 stack: a safe DOM for XML that is about to be signed, verified, encrypted or decrypted. It parses without being attacked, finds an element by its ID without ambiguity, canonicalizes without ever hashing nothing, reads text as the signer meant it, and serializes what was built. It knows no signature, no cipher, no SAML and no HTTP.
+The `Core` namespace of `xml-security`, the brick the rest of this document names, the safe DOM of the SAML 2.0 stack: a safe DOM for XML that is about to be signed, verified, encrypted or decrypted. It parses without being attacked, finds an element by its ID without ambiguity, canonicalizes without ever hashing nothing, reads text as the signer meant it, and serializes what was built. It knows no signature, no cipher, no SAML and no HTTP.
 
 | | |
 |---|---|
-| Repository | `beffroi-php/saml-xml-core` |
-| Package, provisional name | `beffroi-php/saml-xml-core` |
-| Namespace, provisional | `Beffroi\Xml\Core` |
-| Runtime | PHP 8.4 or later, `ext-dom` (the `Dom\` API introduced in PHP 8.4), `ext-libxml`. Nothing else. |
-| Consumers | `xml-dsig`, `xml-enc`, `saml2-model`; outside the stack, any XML Signature or XML Encryption profile (XAdES, WS-Security) |
-| Design | Sub-spike 8a of [spike 8](https://github.com/Spomky-Labs/heidi-design/blob/main/spikes/08-saml/README.md) and [decision 0013](https://github.com/Spomky-Labs/heidi-design/blob/main/docs/decisions/0013-saml-formats-xml-ecrits-ici.md) of the identity provider's design repository |
+| Repository | `beffroi-php/xml-security`, one package for the safe DOM, XML Signature and XML Encryption, in three namespaces |
+| Package | `beffroi-php/xml-security` |
+| Namespace | `Beffroi\Xml\Core`, next to `Beffroi\Xml\Dsig` and `Beffroi\Xml\Enc`; this document is the law of `Core` alone |
+| Runtime | PHP 8.4 or later, `ext-dom` (the `Dom\` API introduced in PHP 8.4), `ext-libxml`. Nothing else is called from `Core`. |
+| Consumers | the `Dsig` and `Enc` namespaces of the package, `saml2-model`; outside the stack, any XML Signature or XML Encryption profile (XAdES, WS-Security) |
+| Design | Sub-spike 8a of [spike 8](https://github.com/Spomky-Labs/heidi-design/blob/main/spikes/08-saml/README.md) and [decision 0013](https://github.com/Spomky-Labs/heidi-design/blob/main/docs/decisions/0013-saml-formats-xml-ecrits-ici.md) of the identity provider's design repository; [decision 0014](https://github.com/Spomky-Labs/heidi-design/blob/main/docs/decisions/0014-xml-security-un-seul-paquet.md) puts the three namespaces in one package |
 
 This document is the whole repository until the sub-spike that builds the brick opens. It states what the brick does, what it refuses and what it guarantees; the code conforms to it, or the document changes first. Section 4 lists the invariants every test enforces, section 5 the public API and the compatibility promise, section 9 the corpus that judges the brick. Every figure in it is dated and sourced (section 13).
 
@@ -27,15 +27,15 @@ The brick answers each with a rule in code. No rule has an option that turns it 
 
 ```mermaid
 graph LR
-    model["saml2-model"] --> dsig["xml-dsig"]
-    model --> enc["xml-enc"]
-    model --> core["<b>xml-core</b><br/>this brick"]
-    dsig --> core
-    enc --> core
+    model["saml2-model"] --> pkg
+    subgraph pkg["xml-security, one package"]
+        dsig["Dsig"] --> core["<b>Core</b><br/>this brick"]
+        enc["Enc"] --> core
+    end
     core --> ext["ext-dom (the Dom API), ext-libxml"]
 ```
 
-The brick depends on the two extensions and on nothing else: no PSR package, no cryptography, no `ext-openssl`, no `ext-mbstring`. Consumers manipulate `Dom\Element` nodes directly; the brick guards the boundaries (bytes in, bytes out, canonical bytes) and the lookups where the attacks live (an element by ID, the text of an element, the children of an element).
+The three namespaces live in one package and one repository (decision 0014): `Dsig` and `Enc` reach the DOM and libxml through `Core` only, never the reverse and never each other, which Deptrac enforces between the namespaces and the rules of section 8 enforce call by call. `Core` depends on the two extensions and on nothing else: no PSR package, no cryptography, no `ext-openssl`, no `ext-mbstring`; what the other namespaces require of the package (`ext-openssl`, `pki-framework`) is never called from `Core`. Consumers manipulate `Dom\Element` nodes directly; the brick guards the boundaries (bytes in, bytes out, canonical bytes) and the lookups where the attacks live (an element by ID, the text of an element, the children of an element).
 
 The `Dom\` API of PHP 8.4 (`Dom\XMLDocument`) is the one used, never `DOMDocument`. It throws on malformed input instead of returning `false`, exposes namespace declarations as attributes, returns `null` for an absent attribute, gives every node a stable PHP object identity (`$element->ownerDocument === $document` holds), and offers `getInScopeNamespaces()`. `Dom\XMLDocument` is a final class, which is why the brick recognises the documents it produced with a `WeakMap` rather than a subclass (section 6.1).
 
@@ -445,7 +445,7 @@ The primitive under test is libxml's, and the tests do not pretend otherwise: th
 
 ### 9.2 Hostile corpus
 
-One fixture file per case under `tests/Fixture/hostile/`, each loaded through the `Loader` with the SAML stack's `IdAttributes` and the default `Limits`, each asserting the named exception and, where libxml gives one, the line.
+One fixture file per case under `tests/Core/Fixture/hostile/`, each loaded through the `Loader` with the SAML stack's `IdAttributes` and the default `Limits`, each asserting the named exception and, where libxml gives one, the line.
 
 | Case | Exception |
 |---|---|
@@ -509,7 +509,7 @@ One fixture file per case under `tests/Fixture/hostile/`, each loaded through th
 
 ### 9.4 Real documents
 
-Anonymised fixtures under `tests/Fixture/real/`, each named with its origin and the date it was captured, each loading without refusal with the SAML stack's `IdAttributes` and the default `Limits`, its IDs indexed, its exclusive canonical form stable across two runs:
+Anonymised fixtures under `tests/Core/Fixture/real/`, each named with its origin and the date it was captured, each loading without refusal with the SAML stack's `IdAttributes` and the default `Limits`, its IDs indexed, its exclusive canonical form stable across two runs:
 
 - Entra: the common federation metadata (31 752 bytes on 2026-09-23, a UTF-8 byte order mark, no diagnostic, 166 elements, depth 6, 49 namespace declarations, one ID, encoding declared `utf-8`), a SAML response and an assertion captured from a test tenant when the sub-spike has one.
 - ADFS: federation metadata and a response, when the sub-spike has a test farm.
@@ -524,7 +524,7 @@ Two soft assertions in the suite, skipped outside CI: loading and indexing the l
 
 ### 9.6 Test form
 
-Every test, from the first, follows the maintainer's form: one behaviour per test, laid out as `// Given`, `// When`, `// Then`; a refusal written as `// Given`, then `// Then` with `expectException()` and `expectExceptionMessageIs()`, then `// When` with the call as the last statement; one behaviour on several inputs through `#[DataProvider]` with named cases; test names citing the section they verify (`itRefusesADoctypeBeforeParsing` with `XML 1.0 §2.8` in the docblock, `itRendersInheritedXmlAttributesInclusively` with `Canonical XML 1.0 §2.3`). Fixtures are files, one case per file, under `tests/Fixture/{canonical,hostile,behaviour,real}/`; a fixture that exists to be refused says so in its name.
+Every test, from the first, follows the maintainer's form: one behaviour per test, laid out as `// Given`, `// When`, `// Then`; a refusal written as `// Given`, then `// Then` with `expectException()` and `expectExceptionMessageIs()`, then `// When` with the call as the last statement; one behaviour on several inputs through `#[DataProvider]` with named cases; test names citing the section they verify (`itRefusesADoctypeBeforeParsing` with `XML 1.0 §2.8` in the docblock, `itRendersInheritedXmlAttributesInclusively` with `Canonical XML 1.0 §2.3`). Fixtures are files, one case per file, under `tests/Core/Fixture/{canonical,hostile,behaviour,real}/`; a fixture that exists to be refused says so in its name.
 
 ### 9.7 Adversarial pass
 
@@ -532,30 +532,35 @@ Once the corpus above is green, each row of section 3 is attacked with inputs th
 
 ## 10. Repository
 
-Until the sub-spike opens, the repository holds this file. When it opens, it takes the shape of the maintainer's other libraries:
+The repository is `beffroi-php/xml-security`, one package for the three namespaces (decision 0014); `Core` is the first one built, in the shape of the maintainer's other libraries:
 
 ```
-composer.json          beffroi-php/saml-xml-core, MIT, php >=8.4, ext-dom, ext-libxml; PSR-4 Beffroi\Xml\Core\ => src/,
-                       Beffroi\Xml\Core\Tests\ => tests/; no dependency, dev ones included: the tools live in the phpqa image
-src/                   Name, Loader, Limits, Document, IdAttribute, IdAttributes, CanonicalizationMethod, InclusiveNamespaces,
+composer.json          beffroi-php/xml-security, MIT, php >=8.4, ext-dom, ext-libxml; PSR-4 Beffroi\Xml\ => src/,
+                       Beffroi\Xml\Tests\ => tests/; no dependency, dev ones included: the tools live in the phpqa image
+spec/                  core.md, this document, the law of the Core namespace; one document per namespace
+src/Core/              Name, Loader, Limits, Document, IdAttribute, IdAttributes, CanonicalizationMethod, InclusiveNamespaces,
                        Canonicalizer, CanonicalXml, Text, Children, Attributes, DocumentFactory, Serializer, Exception/,
                        Internal/ (Inspector: the rules of 6.1 steps 5 and 6 on a parsed document; Registry: the two weak maps
                        of 6.1 step 7), marked @internal, outside the compatibility promise of section 5
-tests/                 Unit/ (one class per class of src/, plus SourceGuardTest, TraceabilityTest, AdversarialTest,
+src/Dsig/, src/Enc/    the other two namespaces, each under its own specification when it is built
+tests/Core/            Unit/ (one class per class of src/Core/, plus SourceGuardTest, TraceabilityTest, AdversarialTest,
                        RealDocumentsTest, PerformanceTest, and Regression/ with one class per row of section 3),
                        Support/ (the loading helpers, the SAML stack's ID attributes, the fixture reader, the direct parse
-                       for foreign documents), PhpStan/ (the two rules of section 8), Fixture/ (canonical, hostile,
-                       behaviour, real: 9.1 to 9.4 and the adversarial pass of 9.7, each canonical directory with a README)
-castor.php, .castor/   the tasks: phpunit, phpstan, mago-format, mago-lint, rector, lint, composer-validate, infect, libxml,
-                       prepare-pr
+                       for foreign documents), Fixture/ (canonical, hostile, behaviour, real: 9.1 to 9.4 and the adversarial
+                       pass of 9.7, each canonical directory with a README)
+tests/PhpStan/         the two rules of section 8, which hold the whole repository, every namespace included
+castor.php, .castor/   the tasks: phpunit, phpstan, deptrac, mago-format, mago-lint, rector, lint, composer-validate, infect,
+                       libxml, prepare-pr
 .ci-tools/             phpstan.neon (level max, strict rules, deprecation rules, phpunit, banned-code for the functions of
-                       section 8, the two rules of tests/PhpStan for the rest), rector.php, phpunit.xml.dist
+                       section 8, the two rules of tests/PhpStan for the rest, their allowed paths under src/Core/),
+                       deptrac.yaml (the three namespaces as layers: Dsig and Enc depend on Core, Core on nothing, the two
+                       never on each other), rector.php, phpunit.xml.dist
 infection.json.dist    at the root, where Infection resolves the source directories of its git diff
 mago.toml              the formatter and the linter
-.github/workflows/     ci.yml on ghcr.io/spomky-labs/phpqa, PHP 8.4 and 8.5: format, lint, rector, phpstan, composer, syntax,
-                       phpunit with coverage, infection on the files of section 9 then on the diff, every PHP job printing
-                       the libxml version and whether LIBXML_NO_XXE is defined; dependency-review.yml; scorecards.yml;
-                       release-on-milestone-closed.yml
+.github/workflows/     ci.yml on ghcr.io/spomky-labs/phpqa, PHP 8.4 and 8.5: format, lint, rector, phpstan, deptrac, composer,
+                       syntax, phpunit with coverage, infection on the files of section 9 then on the diff, every PHP job
+                       printing the libxml version and whether LIBXML_NO_XXE is defined; dependency-review.yml;
+                       scorecards.yml; release-on-milestone-closed.yml
 LICENSE, README.md, SECURITY.md, CODE_OF_CONDUCT.md
 ```
 
