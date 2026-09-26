@@ -194,6 +194,20 @@ function phpstan(): void
     ]);
 }
 
+#[AsTask(
+    description: 'Run Deptrac between the namespaces: Dsig and Enc depend on Core, never the reverse, never on each other (decision 0014)',
+)]
+function deptrac(): void
+{
+    phpqa([
+        'deptrac',
+        'analyse',
+        '--config-file=.ci-tools/deptrac.yaml',
+        '--cache-file=tmp-phpqa/.deptrac.cache',
+        '--no-progress',
+    ]);
+}
+
 #[AsTask(description: 'Run PHP parallel linter')]
 function lint(): void
 {
@@ -306,6 +320,7 @@ function prepare_pr(): void
 
     io()->section('Running static analysis…');
     phpstan();
+    deptrac();
     lint();
     composer_validate();
 

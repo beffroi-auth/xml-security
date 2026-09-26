@@ -41,7 +41,7 @@ jobs:
           fi
 
   quality:
-    name: "1️⃣ Quality (PHPStan, Mago, Rector, composer.json, syntax)"
+    name: "1️⃣ Quality (PHPStan, Deptrac, Mago, Rector, composer.json, syntax)"
     needs: [pre_checks]
     runs-on: ubuntu-latest
     container:
@@ -58,6 +58,9 @@ jobs:
       - name: "Static Analysis (PHPStan)"
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         run: castor phpstan
+      - name: "Layers (Deptrac)"
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        run: castor deptrac
       - name: "Formatting (Mago)"
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         run: castor mago-format
