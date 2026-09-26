@@ -20,13 +20,13 @@ use function Castor\run;
  * and 6 to Internal\Inspector, which is why that file is held to the same bar.
  */
 const INFECTION_STRICT_FILES = [
-    'src/Loader.php',
-    'src/Internal/Inspector.php',
-    'src/Canonicalizer.php',
-    'src/Text.php',
-    'src/Children.php',
-    'src/CanonicalXml.php',
-    'src/Serializer.php',
+    'src/Core/Loader.php',
+    'src/Core/Internal/Inspector.php',
+    'src/Core/Canonicalizer.php',
+    'src/Core/Text.php',
+    'src/Core/Children.php',
+    'src/Core/CanonicalXml.php',
+    'src/Core/Serializer.php',
 ];
 
 /**
@@ -194,6 +194,20 @@ function phpstan(): void
     ]);
 }
 
+#[AsTask(
+    description: 'Run Deptrac between the namespaces: Dsig and Enc depend on Core, never the reverse, never on each other (decision 0014)',
+)]
+function deptrac(): void
+{
+    phpqa([
+        'deptrac',
+        'analyse',
+        '--config-file=.ci-tools/deptrac.yaml',
+        '--cache-file=tmp-phpqa/.deptrac.cache',
+        '--no-progress',
+    ]);
+}
+
 #[AsTask(description: 'Run PHP parallel linter')]
 function lint(): void
 {
@@ -306,6 +320,7 @@ function prepare_pr(): void
 
     io()->section('Running static analysis…');
     phpstan();
+    deptrac();
     lint();
     composer_validate();
 

@@ -110,22 +110,22 @@ parameters:
 			allowedIn: []
 		-
 			method: createFromString
-			allowedIn: [src/Loader.php, tests/]
+			allowedIn: [src/Core/Loader.php, tests/]
 		-
 			method: createFromFile
 			allowedIn: []
 		-
 			method: createEmpty
-			allowedIn: [src/DocumentFactory.php]
+			allowedIn: [src/Core/DocumentFactory.php]
 		-
 			method: C14N
-			allowedIn: [src/Canonicalizer.php]
+			allowedIn: [src/Core/Canonicalizer.php]
 		-
 			method: C14NFile
 			allowedIn: []
 		-
 			method: saveXml
-			allowedIn: [src/Serializer.php]
+			allowedIn: [src/Core/Serializer.php]
 		-
 			method: saveXmlFile
 			allowedIn: []
@@ -166,13 +166,13 @@ parametersSchema:
 
 services:
 	-
-		class: Beffroi\Xml\Core\Tests\PhpStan\BannedNamesRule
+		class: Beffroi\Xml\Tests\PhpStan\BannedNamesRule
 		arguments:
 			names: %bannedNames%
 		tags:
 			- phpstan.rules.rule
 	-
-		class: Beffroi\Xml\Core\Tests\PhpStan\BannedCallsRule
+		class: Beffroi\Xml\Tests\PhpStan\BannedCallsRule
 		arguments:
 			calls: %bannedCalls%
 			workingDirectory: %currentWorkingDirectory%
