@@ -38,6 +38,8 @@ enum ContentAlgorithm: string
 
     /**
      * The length of the session key, the one length the decryptor accepts (E-2).
+     *
+     * @return positive-int
      */
     public function keyBytes(): int
     {
