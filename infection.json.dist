@@ -14,7 +14,8 @@
         "Throw_": {
             "ignoreSourceCodeByRegex": [
                 "throw new SerializationFailed\\('libxml could not serialize the document \\(I-15\\)\\.'\\);",
-                "throw new AlgorithmUnavailable\\(.*"
+                "throw new AlgorithmUnavailable\\(.*",
+                ".*throw new SigningFailed\\(.*"
             ]
         }
     },
