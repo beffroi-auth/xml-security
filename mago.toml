@@ -13,6 +13,9 @@ php-version = "8.4"
 
 [source]
 paths = ["src", "tests", "castor.php", ".castor", ".ci-tools/rector.php"]
+# The fixtures are data; the throwaway interoperability project under tests/Dsig/Fixture/real runs in its own
+# container against a library that is not a dependency of this package (spec/dsig.md section 9.4).
+excludes = ["tests/Core/Fixture", "tests/Dsig/Fixture"]
 # Read, never reported on: what the analyzer needs to resolve a symbol. The second path is where the phpqa image
 # keeps PHPUnit; it simply does not exist outside the image, which is where the quality tasks run.
 includes = ["vendor", "/tools/.composer/vendor-bin/phpunit/vendor"]
