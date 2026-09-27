@@ -160,6 +160,12 @@ final readonly class IdAttributes
     public static function none(): self;
     public function withAttribute(IdAttribute $attribute): self;
 }
+
+final readonly class NcName
+{
+    /** Namespaces in XML 1.0 §3, production NCName, over the character classes of XML 1.0 fifth edition §2.3: what an ID is (I-8), and what a reference of Dsig names after its "#" */
+    public static function is(string $value): bool;
+}
 ```
 
 What the SAML stack registers, for the record and for the tests of this brick; each consumer registers its own:
@@ -539,7 +545,7 @@ composer.json          beffroi-php/xml-security, MIT, php >=8.4, ext-dom, ext-li
                        called from Core); PSR-4 Beffroi\Xml\ => src/,
                        Beffroi\Xml\Tests\ => tests/; no dependency, dev ones included: the tools live in the phpqa image
 spec/                  core.md, this document, the law of the Core namespace; one document per namespace
-src/Core/              Name, Loader, Limits, Document, IdAttribute, IdAttributes, CanonicalizationMethod, InclusiveNamespaces,
+src/Core/              Name, NcName, Loader, Limits, Document, IdAttribute, IdAttributes, CanonicalizationMethod, InclusiveNamespaces,
                        Canonicalizer, CanonicalXml, Text, Children, Attributes, DocumentFactory, Serializer, Exception/,
                        Internal/ (Inspector: the rules of 6.1 steps 5 and 6 on a parsed document; Registry: the two weak maps
                        of 6.1 step 7), marked @internal, outside the compatibility promise of section 5
