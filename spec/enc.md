@@ -418,7 +418,7 @@ Under `tests/Enc/Fixture/real/`, each named with its origin and the date it was 
 
 ### 9.5 Performance
 
-One soft assertion in the suite, skipped outside CI: decrypting an encrypted assertion of the size of SimpleSAMLphp's, the load included, takes less than 10 ms.
+One soft assertion in the suite, skipped outside CI: decrypting the assertion SimpleSAMLphp's library encrypted, the load included, takes less than 10 ms; measured at half a millisecond on a laptop (section 13).
 
 ### 9.6 Test form
 
@@ -458,7 +458,6 @@ tests/Enc/             Unit/ (one class per class of src/Enc/, plus Traceability
 - Whether the `EncryptedKey` next to the `EncryptedData`, the sibling form SAML Core §6.1 also allows, is accepted, once a real producer that uses it is captured.
 - CBC and the interoperability targets: Entra and ADFS encrypt under `aes256-cbc`; decision 0013 refuses CBC. The trade-off, the SP role refusing their encrypted assertions against a padding oracle the profile would have to close some other way, is the product's, recorded on the epic.
 - The plaintext of a producer that drives xmlsec1 on an element nested in a document that declares its namespace for it, as pysaml2 does: xmlsec1 dumps the element without the declarations it inherits (section 13), and E-9 refuses that plaintext, since parsing it back in the context of the encrypted document, as xmlsec1 does, would make the plaintext depend on the document around it. The trade-off is the product's, like CBC: recorded on the epic.
-- The performance figure of 9.5, once the fixtures exist.
 
 ## 13. Sources
 
@@ -483,5 +482,6 @@ tests/Enc/             Unit/ (one class per class of src/Enc/, plus Traceability
 - An OAEP unwrap of a blob wrapped under PKCS#1 v1.5, or of a blob of the wrong length, returns `false`; twenty failing unwraps cost 7 ms, twenty succeeding ones 8 ms.
 - xmlsec1 1.3.7 encrypts a `saml:Assertion` from a template holding `aes256-gcm`, `rsa-oaep-mgf1p` and the test certificate (`--encrypt --lax-key-search --pubkey-cert-pem cert.pem --session-key aes-256-gcm --xml-data data.xml`), `--node-id` naming the element of the data file to encrypt, and its output is the data file with that element replaced by the filled template; it fills a template naming `rsa-oaep` with a `DigestMethod` and an `MGF` of SHA-256 as well, and decrypts its own output with the private key to the same bytes, a comment inside the plaintext included. The plaintext it encrypts is the element dumped with the namespace declarations the element itself carries and none it inherits: an assertion nested in a response that declares `xmlns:saml` for it is encrypted without the declaration, and xmlsec1 reads it back only because it parses the plaintext in the context of the parent. The vectors of 9.1 declare `xmlns:saml` on the assertion; the nested form without it is the hostile case of E-9.
 - xmlseclibs 3.1.5 names `AES128_GCM`, `AES192_GCM`, `AES256_GCM`, `AES128_CBC`, `AES192_CBC`, `AES256_CBC`, `TRIPLEDES_CBC`, `RSA_OAEP_MGF1P` and `RSA_OAEP`, and its `XMLSecEnc::encryptKey()` writes the `EncryptionMethod` of an `EncryptedKey` with no child under both RSA-OAEP names, SHA-1 for the hash and the MGF by default. `simplesamlphp/saml2` 4.20.3's `EncryptedAssertion::setAssertion()` wraps an AES-128-CBC session key when the key it is given is an RSA key, and shares the symmetric key with no `EncryptedKey` when it is an AES key: AES-GCM under RSA-OAEP comes from `XMLSecEnc::encryptKey()` then `encryptNode()`, called directly.
+- `simplesamlphp/saml2` 4.20.3 on xmlseclibs 3.1.5 decrypts what the encryptor produced under both content algorithms and the `aes256-gcm` vector of xmlsec1 (`Message::fromXML()`, `EncryptedAssertion::getAssertion()`), refuses the `rsa-oaep` vector with SHA-256, since it unwraps under SHA-1 only, and refuses the fixture with the truncated tag; `XMLSecEnc::encryptKey()` then `encryptNode()` produce `aes256-gcm` and `aes128-gcm` under `rsa-oaep-mgf1p`, the `EncryptedKey` inside a `dsig:KeyInfo` with no hint, which the decryptor accepts. Decrypting the assertion xmlseclibs encrypted, the load included, takes half a millisecond on a laptop, PHP 8.4.25.
 - Microsoft Entra ID's token encryption and ADFS's assertion encryption use `aes256-cbc` with `rsa-oaep-mgf1p`, per their documentation; neither offers GCM.
 - From the sources, not measured: OpenSAML's default `RSAOAEPParameters` name SHA-1 for the digest and `mgf1sha1` for the MGF, and Santuario writes that `DigestMethod` under `rsa-oaep-mgf1p`, which is the shape of an assertion Shibboleth encrypts, under `aes128-gcm` by default since its IdP version 4; .NET's `EncryptedXml`, behind ADFS and Entra, writes the same child.
