@@ -6,6 +6,9 @@ namespace Beffroi\Xml\Dsig;
 
 use Beffroi\Xml\Dsig\Exception\UnknownDigestAlgorithm;
 use function hash;
+use const OPENSSL_ALGO_SHA256;
+use const OPENSSL_ALGO_SHA384;
+use const OPENSSL_ALGO_SHA512;
 
 /**
  * The closed list of digest methods (D-5): SHA-256 of XML Signature 1.1 §6.2, SHA-384 and SHA-512 of RFC 6931
@@ -52,6 +55,18 @@ enum DigestAlgorithm: string
             self::Sha256 => 32,
             self::Sha384 => 48,
             self::Sha512 => 64,
+        };
+    }
+
+    /**
+     * What openssl_sign() and openssl_verify() take.
+     */
+    public function opensslAlgorithm(): int
+    {
+        return match ($this) {
+            self::Sha256 => OPENSSL_ALGO_SHA256,
+            self::Sha384 => OPENSSL_ALGO_SHA384,
+            self::Sha512 => OPENSSL_ALGO_SHA512,
         };
     }
 }
