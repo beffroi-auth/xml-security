@@ -24,9 +24,12 @@ use function str_starts_with;
 use function strtolower;
 
 /**
- * Section 8 of the specification: the methods of the Dom API never called, and the calls allowed in one class each
- * (createFromString() in Loader, createEmpty() in DocumentFactory, C14N() in Canonicalizer, saveXml() in Serializer:
- * I-4, I-13, I-15). A dynamic call or a dynamic instantiation would escape the rule, so both are refused too.
+ * Section 8 of the specifications: the methods of the Dom API and the functions of OpenSSL never called, and the
+ * calls allowed in one file each (createFromString() in Loader, createEmpty() in DocumentFactory, C14N() in
+ * Canonicalizer, saveXml() in Serializer for Core, I-4, I-13, I-15; openssl_verify() in Verifier, openssl_sign() in
+ * PrivateKey and the two key loaders for Dsig, D-15). A dynamic call or a dynamic instantiation would escape the
+ * rule, so both are refused too. ekino/phpstan-banned-code bans a function everywhere or nowhere; this rule confines
+ * one to named files.
  *
  * @implements Rule<CallLike>
  */
@@ -38,17 +41,31 @@ final class BannedCallsRule implements Rule
     private array $calls = [];
 
     /**
-     * @param list<array{method: string, allowedIn: list<string>}> $calls
+     * @var array<string, array{spelling: string, allowedIn: list<string>}> keyed by the lowercased function name
+     */
+    private array $functions = [];
+
+    /**
+     * @param list<array{method?: string, function?: string, allowedIn: list<string>}> $calls one of method or function each
      */
     public function __construct(
         array $calls,
         private readonly string $workingDirectory,
     ) {
         foreach ($calls as $call) {
-            $this->calls[strtolower($call['method'])] = [
-                'spelling' => $call['method'],
-                'allowedIn' => $call['allowedIn'],
-            ];
+            if (isset($call['function'])) {
+                $this->functions[strtolower($call['function'])] = [
+                    'spelling' => $call['function'],
+                    'allowedIn' => $call['allowedIn'],
+                ];
+                continue;
+            }
+            if (isset($call['method'])) {
+                $this->calls[strtolower($call['method'])] = [
+                    'spelling' => $call['method'],
+                    'allowedIn' => $call['allowedIn'],
+                ];
+            }
         }
     }
 
@@ -70,11 +87,11 @@ final class BannedCallsRule implements Rule
             );
         }
         if ($node instanceof FuncCall) {
-            return (
-                $node->name instanceof Name
-                    ? []
-                    : [$this->error('A dynamic call escapes the review: name the function.')]
-            );
+            if (! $node->name instanceof Name) {
+                return [$this->error('A dynamic call escapes the review: name the function.')];
+            }
+
+            return $this->confined($this->functions[$node->name->toLowerString()] ?? null, $scope);
         }
         if (! $node instanceof MethodCall && ! $node instanceof NullsafeMethodCall && ! $node instanceof StaticCall) {
             return [];
@@ -83,7 +100,16 @@ final class BannedCallsRule implements Rule
             return [$this->error('A dynamic call escapes the review: name the method.')];
         }
 
-        $call = $this->calls[$node->name->toLowerString()] ?? null;
+        return $this->confined($this->calls[$node->name->toLowerString()] ?? null, $scope);
+    }
+
+    /**
+     * @param ?array{spelling: string, allowedIn: list<string>} $call
+     *
+     * @return list<IdentifierRuleError>
+     */
+    private function confined(?array $call, Scope $scope): array
+    {
         if ($call === null) {
             return [];
         }
