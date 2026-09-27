@@ -449,6 +449,7 @@ tests/Enc/             Unit/ (one class per class of src/Enc/, plus Traceability
 
 - Whether the `EncryptedKey` next to the `EncryptedData`, the sibling form SAML Core §6.1 also allows, is accepted, once a real producer that uses it is captured.
 - CBC and the interoperability targets: Entra and ADFS encrypt under `aes256-cbc`; decision 0013 refuses CBC. The trade-off, the SP role refusing their encrypted assertions against a padding oracle the profile would have to close some other way, is the product's, recorded on the epic.
+- The plaintext of a producer that drives xmlsec1 on an element nested in a document that declares its namespace for it, as pysaml2 does: xmlsec1 dumps the element without the declarations it inherits (section 13), and E-9 refuses that plaintext, since parsing it back in the context of the encrypted document, as xmlsec1 does, would make the plaintext depend on the document around it. The trade-off is the product's, like CBC: recorded on the epic.
 - The performance figure of 9.5, once the fixtures exist.
 
 ## 13. Sources
