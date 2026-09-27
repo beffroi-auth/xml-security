@@ -5,8 +5,8 @@ declare(strict_types=1);
 /*
  * The hostile fixtures the reading model refuses (spec/enc.md section 9.2, rows 1 to 18): each one is the vector
  * ../vectors/response-encrypted-assertion-aes256-gcm.xml with the one change its name says, and nothing else.
- * Run from this directory: php derive.php. The fixtures of the decryptor (rows 19 to 33) are made by hand from the
- * same vector and described in README.md.
+ * Run from this directory: php derive.php. The fixtures the decryptor refuses (rows 19 to 30) come from
+ * derive-decryptor.php next to it, or from xmlsec1, as README.md says.
  */
 
 $vector = file_get_contents(__DIR__ . '/../vectors/response-encrypted-assertion-aes256-gcm.xml');
