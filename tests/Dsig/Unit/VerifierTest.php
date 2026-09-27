@@ -26,7 +26,6 @@ use Beffroi\Xml\Tests\Dsig\Support\Fixtures;
 use Beffroi\Xml\Tests\Dsig\Support\Loaded;
 use function defined;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use function str_starts_with;
@@ -195,10 +194,12 @@ final class VerifierTest extends TestCase
      * key is touched.
      */
     #[Test]
-    #[RequiresPhp('< 8.5.0')]
     public function itRefusesPssWhereTheBuildCannotVerifyIt(): void
     {
         // Given
+        if (SignatureAlgorithm::RsaPssSha256->isAvailable()) {
+            static::markTestSkipped('RSASSA-PSS is available on this build; the refusal is the business of PHP 8.4.');
+        }
         $document = Loaded::fixture('vectors/response-assertion-rsa-pss-sha256.xml');
         $signed = $document->elementById('_assertion-d4e5f6');
 
