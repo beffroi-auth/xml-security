@@ -53,14 +53,14 @@ final class BannedCallsRule implements Rule
         private readonly string $workingDirectory,
     ) {
         foreach ($calls as $call) {
-            if (isset($call['function'])) {
+            if (($call['function'] ?? null) !== null) {
                 $this->functions[strtolower($call['function'])] = [
                     'spelling' => $call['function'],
                     'allowedIn' => $call['allowedIn'],
                 ];
                 continue;
             }
-            if (isset($call['method'])) {
+            if (($call['method'] ?? null) !== null) {
                 $this->calls[strtolower($call['method'])] = [
                     'spelling' => $call['method'],
                     'allowedIn' => $call['allowedIn'],
