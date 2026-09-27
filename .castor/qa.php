@@ -103,14 +103,14 @@ function phpqa_update(): void
 }
 
 #[AsTask(
-    description: 'Print the PHP and libxml versions and whether LIBXML_NO_XXE is defined: what the corpus can and cannot exercise on this build (specification, section 12)',
+    description: 'Print the PHP, libxml and OpenSSL versions and whether LIBXML_NO_XXE and OPENSSL_PKCS1_PSS_PADDING are defined: what the corpus can and cannot exercise on this build (core.md section 12, dsig.md section 10)',
 )]
 function libxml(): void
 {
     phpqa([
         'php',
         '-r',
-        'printf("PHP %s, libxml %s, LIBXML_NO_XXE %s\n", PHP_VERSION, LIBXML_DOTTED_VERSION, defined("LIBXML_NO_XXE") ? "defined" : "undefined");',
+        'printf("PHP %s, libxml %s, LIBXML_NO_XXE %s, %s, OPENSSL_PKCS1_PSS_PADDING %s\n", PHP_VERSION, LIBXML_DOTTED_VERSION, defined("LIBXML_NO_XXE") ? "defined" : "undefined", OPENSSL_VERSION_TEXT, defined("OPENSSL_PKCS1_PSS_PADDING") ? "defined" : "undefined");',
     ]);
 }
 
