@@ -27,6 +27,13 @@ const INFECTION_STRICT_FILES = [
     'src/Core/Children.php',
     'src/Core/CanonicalXml.php',
     'src/Core/Serializer.php',
+    'src/Dsig/Signature.php',
+    'src/Dsig/SignedInfo.php',
+    'src/Dsig/Reference.php',
+    'src/Dsig/SignatureAlgorithm.php',
+    'src/Dsig/DigestAlgorithm.php',
+    'src/Dsig/Internal/Base64.php',
+    'src/Dsig/Internal/Structure.php',
 ];
 
 /**
