@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_response-a1b2c3" Version="2.0" IssueInstant="2026-09-27T10:00:00Z" Destination="https://sp.example.org/acs">
+  <saml:Issuer>https://idp.example.org</saml:Issuer>
+  <samlp:Status>
+    <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </samlp:Status>
+  <saml:Assertion ID="_assertion-d4e5f6" Version="2.0" IssueInstant="2026-09-27T10:00:00Z">
+    <saml:Issuer>https://idp.example.org</saml:Issuer>
+    <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+      <ds:SignedInfo>
+        <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+        <ds:SignatureMethod/>
+        <ds:Reference URI="#_assertion-d4e5f6">
+          <ds:Transforms>
+            <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+            <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+          </ds:Transforms>
+          <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+          <ds:DigestValue>2AqMFipIzcIh+H9CgGiutJXn9Nbe/YjzLZfUskaheAw=</ds:DigestValue>
+        </ds:Reference>
+      </ds:SignedInfo>
+      <ds:SignatureValue>mF7V4CnVsdXEIFq6DEVg+cc0GI6oMEllXC6/2noNpZG04RS+WJ02pryovkpPAMR5
+4dMPMzwMJCEOxhdOFXcfY1SAJeh6Gii4iYU3kQgBh/cjnZjyokzfcBe2QA1yu0sj
+gcC2cO2zN0Ibvu5rehpOqA8JGeMFoTKO8RkuGU4sf5LniM8KM3DoaZEnBao4kp2F
+IhjHRTQv+FXoIfUoeNA+D/lOLld1zVdHstd9+sKsiIDqNItD3a2+oQUzZFApvLyf
+W7CSFXbRGVUY+VIqmpdqCxmWQjDdm1+A+HI1IBypj4KSzNiRtK6RNpdfoggKTuY4
+HnjHySNJrYTLjIDE9Ftv/g==</ds:SignatureValue>
+      <ds:KeyInfo>
+        <ds:X509Data>
+          <ds:X509Certificate>MIIDTTCCAjWgAwIBAgIUG4P+j+6wL+YCW0WUrwOVNYPuohowDQYJKoZIhvcNAQEL
+BQAwNjE0MDIGA1UEAwwreG1sLXNlY3VyaXR5IHRlc3Qgc2lnbmluZyBrZXksIG5v
+dCBhIHNlY3JldDAeFw0yNjA5MjcxMTEyNTFaFw00NjA5MjIxMTEyNTFaMDYxNDAy
+BgNVBAMMK3htbC1zZWN1cml0eSB0ZXN0IHNpZ25pbmcga2V5LCBub3QgYSBzZWNy
+ZXQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCtSwGRIyDVRSDZMgu/
+gX3bD+iTw7s90Nu4kZRB+L5VSjLbfavbFzvHnolj4yB1fr3YsZNVD8ReE7/XLP2Y
+vY60BRHecMHPG1aIqq9SDg+mTiS5l9oLcHHcEYUuFTx10DQ7HAr+6nV1EGKZOZy4
+XbchUrZvcRMRLvCBWOCK0Ce04qxfnKv3LYar7Y9PwHSHseCWidG/CDhRwthu6s2f
+gFQYS7a7I8InL8K/gFeEc/wSEM4i/4OEar7sDIa/e4YtKjwaDSmfw7ubxeKx/Xj/
+kgotu+knQP5RNla0VuNBivmee4E4se9BInsg8VUZlqnTr5UIW3cQwshNBGKru9U4
+sloLAgMBAAGjUzBRMB0GA1UdDgQWBBTwlIfMWjNMpY2HK6D0P02++LkVqjAfBgNV
+HSMEGDAWgBTwlIfMWjNMpY2HK6D0P02++LkVqjAPBgNVHRMBAf8EBTADAQH/MA0G
+CSqGSIb3DQEBCwUAA4IBAQAG7Cdod54RK3gW1oYwlI0N2eHPtF6cSaRgjfbloDdA
+V6DcszW7EBrydNEr0msBPsgBYUJCa0Au/NZa2n5ilA2DKiat0qBX8MXTq1PvtwYc
+uIAuDC7mmki7+1HHmDk2U8yd7AsdoHQNZCgeu65iEOtdLHtNVZbKBBzw2f09xnMC
+6zPxmIpkg27Nmq5hG3rosR1byKvArzMiYYC68MWGy3f+5o6ngahBFQYq6213wYEx
+T9ZWEvONZ/G0SYbS4T9NmPf0SQJvh8kFxCDYuJ3idCtjiwVtTrNLL+z9ktr6jZxS
+T3zWQ414eHCywTwkw5iNC+knbWO4kMqL/36hrQG5vvvr
+</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </ds:Signature>
+    <saml:Subject>
+      <saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">user-0001</saml:NameID>
+      <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+        <saml:SubjectConfirmationData NotOnOrAfter="2026-09-27T10:05:00Z" Recipient="https://sp.example.org/acs" InResponseTo="_request-7g8h9i"/>
+      </saml:SubjectConfirmation>
+    </saml:Subject>
+    <saml:Conditions NotBefore="2026-09-27T09:59:00Z" NotOnOrAfter="2026-09-27T10:05:00Z">
+      <saml:AudienceRestriction>
+        <saml:Audience>https://sp.example.org</saml:Audience>
+      </saml:AudienceRestriction>
+    </saml:Conditions>
+    <saml:AuthnStatement AuthnInstant="2026-09-27T09:58:00Z" SessionIndex="_session-j1k2l3">
+      <saml:AuthnContext>
+        <saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef>
+      </saml:AuthnContext>
+    </saml:AuthnStatement>
+    <saml:AttributeStatement>
+      <saml:Attribute Name="mail" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+        <saml:AttributeValue>user@example.org</saml:AttributeValue>
+      </saml:Attribute>
+    </saml:AttributeStatement>
+  </saml:Assertion>
+</samlp:Response>
