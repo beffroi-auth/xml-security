@@ -355,7 +355,7 @@ Constants of the namespace, never options: a consumer who needs more has a case 
 
 ## 9. Acceptance
 
-The namespace is accepted when every case below is a green test in CI on PHP 8.4 and 8.5, when Infection leaves no escaped mutant in `Verifier`, `Signer`, `Signature`, `SignedInfo`, `Reference`, `SignatureAlgorithm`, `DigestAlgorithm`, `VerificationKey` and `PrivateKey`, when the real documents of 9.4 verify, and when SimpleSAMLphp verifies what the signer produces and the verifier accepts what SimpleSAMLphp signs (the judge of sub-spike 8a, story by story on the epic).
+The namespace is accepted when every case below is a green test in CI on PHP 8.4 and 8.5, when Infection leaves no escaped mutant in `Verifier`, `Verified`, `Signer`, `Signature`, `SignedInfo`, `Reference`, `SignatureAlgorithm`, `DigestAlgorithm`, `VerificationKey`, `VerificationKeys` and `PrivateKey`, when the real documents of 9.4 verify, and when SimpleSAMLphp verifies what the signer produces and the verifier accepts what SimpleSAMLphp signs (the judge of sub-spike 8a, story by story on the epic). One mutant is ignored by configuration, the `throw` of `AlgorithmUnavailable`: the mutation job runs on PHP 8.5, where a PSS scheme is always available, and the refusal is reached on 8.4 only, where the padding a PSS scheme passes is what cannot be reached; the two builds cover the two branches, and the tests of 9.1 exercise both.
 
 ### 9.1 Vectors
 
