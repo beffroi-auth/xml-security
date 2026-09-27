@@ -15,6 +15,7 @@ use Beffroi\Xml\Dsig\VerificationKeys;
 use Beffroi\Xml\Dsig\Verifier;
 use Beffroi\Xml\Tests\Core\Support\Fixtures as CoreFixtures;
 use Beffroi\Xml\Tests\Core\Support\Stack;
+use Beffroi\Xml\Tests\Dsig\Support\Fixtures;
 use Beffroi\Xml\Tests\Dsig\Support\Loaded;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -69,6 +70,53 @@ final class RealDocumentsTest extends TestCase
 
         // Then
         static::assertSame($first->canonical->bytes, $second->canonical->bytes);
+    }
+
+    /**
+     * §9.4, the judge of sub-spike 8a: the response SimpleSAMLphp's own library signed (simplesamlphp/saml2 4.20.3
+     * on xmlseclibs 3.1.5, 27 September 2026) verifies with the test certificate; the reverse is in
+     * tests/Dsig/Fixture/real/README.md.
+     */
+    #[Test]
+    public function itVerifiesTheAssertionSimpleSamlPhpSigned(): void
+    {
+        // Given
+        $document = Loaded::fixture('real/simplesamlphp-saml2-4.20.3-response-signed-assertion-2026-09-27.xml');
+        $verifier = new Verifier(new Loader(Stack::idAttributes()));
+        $keys = new VerificationKeys([
+            VerificationKey::fromCertificatePem(Fixtures::bytes('keys/test-signing-certificate.pem')),
+        ]);
+
+        // When
+        $verified = $verifier->verify($document->elementById('_ssp-assertion-p1q2r3'), $keys);
+
+        // Then
+        static::assertSame('Assertion', $verified->document->root()->localName);
+        static::assertSame(SignatureAlgorithm::RsaSha256, $verified->algorithm);
+        static::assertStringContainsString('user-0001', $verified->canonical->bytes);
+    }
+
+    /**
+     * §9.4: the response SimpleSAMLphp's library signed over its signed assertion, both signatures verified.
+     */
+    #[Test]
+    public function itVerifiesTheResponseAndTheAssertionSimpleSamlPhpSigned(): void
+    {
+        // Given
+        $document = Loaded::fixture('real/simplesamlphp-saml2-4.20.3-response-signed-both-2026-09-27.xml');
+        $verifier = new Verifier(new Loader(Stack::idAttributes()));
+        $keys = new VerificationKeys([
+            VerificationKey::fromCertificatePem(Fixtures::bytes('keys/test-signing-certificate.pem')),
+        ]);
+
+        // When
+        $response = $verifier->verify($document->elementById('_ssp-response-s4t5u6'), $keys);
+        $assertion = $verifier->verify($document->elementById('_ssp-assertion-p1q2r3'), $keys);
+
+        // Then
+        static::assertSame('Response', $response->document->root()->localName);
+        static::assertStringContainsString('<ds:Signature', $response->canonical->bytes);
+        static::assertSame('Assertion', $assertion->document->root()->localName);
     }
 
     /**
