@@ -22,3 +22,13 @@ as built.
 |---|---|
 | `encrypted-by-the-encryptor-aes256-gcm.xml` | `aes256-gcm`, the session key under `rsa-oaep-mgf1p` |
 | `encrypted-by-the-encryptor-aes128-gcm.xml` | `aes128-gcm`, the same transport |
+
+## The adversarial pass
+
+The `adversarial-*-decrypts.xml` files are the attempts of spec/enc.md section 9.7 that change nothing the cipher
+covers, derived by `../hostile/derive-adversarial.php` from the vector: whitespace, a CDATA section, a comment and a
+processing instruction around or inside the cipher value; garbage inside the key's `KeyInfo`; a comment and
+whitespace inside an `EncryptionMethod`; the `EncryptedData` under another prefix of the same namespace; `Id`,
+`MimeType`, `Encoding` and `xml:space` attributes the model does not read; and an assertion holding the vector's own
+`EncryptedData`, encrypted again under a fresh key, whose inner element stays encrypted until the consumer decrypts
+it. `AdversarialTest` decrypts each to the assertion of the vector.
