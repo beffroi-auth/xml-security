@@ -87,7 +87,7 @@ parameters:
 		- ReflectionProperty
 		- ReflectionFunction
 		- ReflectionNamedType
-		# spec/dsig.md section 8: the digests and paddings the namespace never names
+		# spec/dsig.md and spec/enc.md section 8: the digests and paddings the namespaces never name
 		- OPENSSL_ALGO_SHA1
 		- OPENSSL_ALGO_MD5
 		- OPENSSL_ALGO_MD4
@@ -95,6 +95,7 @@ parameters:
 		- OPENSSL_PKCS1_PADDING
 		- OPENSSL_NO_PADDING
 		- OPENSSL_SSLV23_PADDING
+		- OPENSSL_ZERO_PADDING
 	bannedCalls:
 		-
 			method: getElementById
@@ -168,7 +169,8 @@ parameters:
 		-
 			method: createEntityReference
 			allowedIn: []
-		# spec/dsig.md section 8, D-15: four OpenSSL functions in one file each, the rest never
+		# spec/dsig.md section 8 (D-15) and spec/enc.md section 8 (E-10): eight OpenSSL functions in one file each, the
+		# two key readers in the key classes of both namespaces, the rest never
 		-
 			function: openssl_verify
 			allowedIn: [src/Dsig/Verifier.php]
@@ -177,10 +179,10 @@ parameters:
 			allowedIn: [src/Dsig/PrivateKey.php]
 		-
 			function: openssl_pkey_get_public
-			allowedIn: [src/Dsig/VerificationKey.php]
+			allowedIn: [src/Dsig/VerificationKey.php, src/Enc/PeerKey.php]
 		-
 			function: openssl_pkey_get_private
-			allowedIn: [src/Dsig/PrivateKey.php]
+			allowedIn: [src/Dsig/PrivateKey.php, src/Enc/PrivateDecryptionKey.php]
 		-
 			function: openssl_private_encrypt
 			allowedIn: []
@@ -189,9 +191,24 @@ parameters:
 			allowedIn: []
 		-
 			function: openssl_private_decrypt
-			allowedIn: []
+			allowedIn: [src/Enc/PrivateDecryptionKey.php]
 		-
 			function: openssl_public_encrypt
+			allowedIn: [src/Enc/PeerKey.php]
+		-
+			function: openssl_decrypt
+			allowedIn: [src/Enc/Decryptor.php]
+		-
+			function: openssl_encrypt
+			allowedIn: [src/Enc/Encryptor.php]
+		-
+			function: openssl_cipher_iv_length
+			allowedIn: []
+		-
+			function: openssl_cipher_key_length
+			allowedIn: []
+		-
+			function: openssl_random_pseudo_bytes
 			allowedIn: []
 		-
 			function: openssl_x509_read
