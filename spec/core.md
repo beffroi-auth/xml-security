@@ -535,7 +535,8 @@ Once the corpus above is green, each row of section 3 is attacked with inputs th
 The repository is `beffroi-php/xml-security`, one package for the three namespaces (decision 0014); `Core` is the first one built, in the shape of the maintainer's other libraries:
 
 ```
-composer.json          beffroi-php/xml-security, MIT, php >=8.4, ext-dom, ext-libxml; PSR-4 Beffroi\Xml\ => src/,
+composer.json          beffroi-php/xml-security, MIT, php >=8.4, ext-dom, ext-libxml, ext-openssl (for Dsig and Enc, never
+                       called from Core); PSR-4 Beffroi\Xml\ => src/,
                        Beffroi\Xml\Tests\ => tests/; no dependency, dev ones included: the tools live in the phpqa image
 spec/                  core.md, this document, the law of the Core namespace; one document per namespace
 src/Core/              Name, Loader, Limits, Document, IdAttribute, IdAttributes, CanonicalizationMethod, InclusiveNamespaces,
@@ -564,7 +565,7 @@ mago.toml              the formatter and the linter
 LICENSE, README.md, SECURITY.md, CODE_OF_CONDUCT.md
 ```
 
-`composer.json` lists no runtime dependency beyond the two extensions, and the CI's `composer validate` is what keeps it so; a dependency added is a change of this document first.
+`composer.json` lists no runtime dependency beyond the three extensions, `ext-openssl` being the business of the other two namespaces and never called from `Core` (Deptrac and the rules of section 8 keep it so); the CI's `composer validate` is what keeps the list short, and a dependency added is a change of this document first.
 
 **Security policy.** Decision 0013 records that the existing PHP bricks fixed canonicalization and GCM flaws without a published advisory, and that the advisory databases missed others. `SECURITY.md` commits this package to the opposite: private reporting through GitHub, a GitHub Security Advisory published with every fix, a CVE requested for it, so that `composer audit` and Packagist see it.
 
