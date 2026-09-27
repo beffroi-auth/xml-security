@@ -1,0 +1,76 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Beffroi\Xml\Dsig;
+
+use Beffroi\Xml\Dsig\Exception\AlgorithmUnavailable;
+use Beffroi\Xml\Dsig\Exception\InvalidKey;
+use Beffroi\Xml\Dsig\Exception\SigningFailed;
+use function constant;
+use function is_string;
+use const OPENSSL_KEYTYPE_RSA;
+use function openssl_pkey_get_details;
+use function openssl_pkey_get_private;
+use function openssl_sign;
+use OpenSSLAsymmetricKey;
+use SensitiveParameter;
+
+/**
+ * A signing key on a PEM in memory, for the tests and for a consumer whose key is a file the deployment gives it
+ * (section 5.2): RSA of at least 2048 bits (D-16). The one openssl_sign() and the one openssl_pkey_get_private()
+ * of the namespace live here (D-15). It exposes nothing of the key.
+ */
+final readonly class PrivateKey implements SigningKeyInterface
+{
+    private function __construct(
+        private OpenSSLAsymmetricKey $handle,
+    ) {
+    }
+
+    /**
+     * @throws InvalidKey when the PEM holds no private key, the passphrase is wrong, or the key is not RSA of at
+     *                    least 2048 bits
+     */
+    public static function fromPem(
+        #[SensitiveParameter]
+        string $pem,
+        #[SensitiveParameter]
+        ?string $passphrase = null,
+    ): self {
+        $handle = openssl_pkey_get_private($pem, $passphrase);
+        // openssl leaves its diagnostics in a queue whatever the outcome; nothing of the stack reads them (D-13)
+
+        if ($handle === false) {
+            throw new InvalidKey('The PEM holds no private key, or the passphrase is wrong (D-16).');
+        }
+        $details = openssl_pkey_get_details($handle);
+        if (
+            $details === false
+            || $details['type'] !== OPENSSL_KEYTYPE_RSA
+            || $details['bits'] < VerificationKey::MIN_BITS
+        ) {
+            throw new InvalidKey('A signing key is RSA of at least 2048 bits (D-16).');
+        }
+
+        return new self($handle);
+    }
+
+    public function sign(string $bytes, SignatureAlgorithm $algorithm): string
+    {
+        if (! $algorithm->isAvailable()) {
+            throw new AlgorithmUnavailable('This build cannot produce RSASSA-PSS: OPENSSL_PKCS1_PSS_PADDING is undefined before PHP 8.5 (section 13).');
+        }
+        // the padding parameter exists on PHP 8.5 only, and isAvailable() was checked (section 13)
+        $padding = $algorithm->isPss() ? [constant('OPENSSL_PKCS1_PSS_PADDING')] : [];
+        $signature = null;
+        openssl_sign($bytes, $signature, $this->handle, $algorithm->digest()->opensslAlgorithm(), ...$padding);
+
+        // openssl_sign() fills $signature or leaves it null: a key the constructor accepted never reaches the null
+        if (! is_string($signature)) {
+            throw new SigningFailed('OpenSSL could not sign the canonical SignedInfo (section 6.2).');
+        }
+
+        return $signature;
+    }
+}
