@@ -96,7 +96,7 @@ final class SignatureTest extends TestCase
      * §9.2 rows 3, 7 to 12 and 18 to 33, D-2, D-3, D-4, D-5, D-8, D-9, D-14: every shape the model refuses, with the
      * rule named and never the input (D-13).
      *
-     * @param class-string<\Throwable> $exception
+     * @param class-string<Throwable> $exception
      */
     #[Test]
     #[DataProvider('provideRefusedShapes')]
