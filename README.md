@@ -151,6 +151,7 @@ castor deptrac        # Dsig and Enc depend on Core, never the reverse, never on
 castor infect         # Infection on the files of section 9, no escaped mutant allowed
 castor infect --diff  # the lines changed since origin/main, the shape of every CI run on the rest
 castor libxml         # the PHP, libxml and OpenSSL versions, and whether LIBXML_NO_XXE and OPENSSL_PKCS1_PSS_PADDING are defined on this build
+castor xmlsec <file>  # xmlsec1, in an Alpine container, verifies a signed file against the test certificate: the oracle of the signer
 ```
 
 Every task runs inside the `ghcr.io/spomky-labs/phpqa` image when Docker is available, on PHP 8.5 by default and
