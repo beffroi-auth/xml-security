@@ -150,7 +150,7 @@ castor prepare-pr     # Mago lint and format, Rector, PHPStan at level max with 
 castor deptrac        # Dsig and Enc depend on Core, never the reverse, never on each other
 castor infect         # Infection on the files of section 9, no escaped mutant allowed
 castor infect --diff  # the lines changed since origin/main, the shape of every CI run on the rest
-castor libxml         # the PHP and libxml versions, and whether LIBXML_NO_XXE is defined on this build
+castor libxml         # the PHP, libxml and OpenSSL versions, and whether LIBXML_NO_XXE and OPENSSL_PKCS1_PSS_PADDING are defined on this build
 ```
 
 Every task runs inside the `ghcr.io/spomky-labs/phpqa` image when Docker is available, on PHP 8.5 by default and
