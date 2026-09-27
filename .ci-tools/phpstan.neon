@@ -11,6 +11,10 @@ parameters:
 	paths:
 		- %currentWorkingDirectory%/src
 		- %currentWorkingDirectory%/tests
+	# the fixtures are data, and the throwaway interoperability project under tests/Dsig/Fixture/real runs in its
+	# own container against a library that is not a dependency of this package (spec/dsig.md section 9.4)
+	excludePaths:
+		- %currentWorkingDirectory%/tests/*/Fixture/*
 	checkUninitializedProperties: true
 	treatPhpDocTypesAsCertain: false
 	banned_code:

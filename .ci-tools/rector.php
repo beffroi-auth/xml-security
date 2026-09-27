@@ -34,6 +34,9 @@ $builder->withPaths([
     __DIR__ . '/rector.php',
 ]);
 $builder->withSkip([
+    // the fixtures are data; the throwaway interoperability project under tests/Dsig/Fixture/real runs in its own
+    // container against a library that is not a dependency of this package (spec/dsig.md section 9.4)
+    __DIR__ . '/../tests/*/Fixture/*',
     PreferPHPUnitThisCallRector::class,
     // The source guard test lists the banned class names of section 8 as tokens to search for, never to reference:
     // turning 'Dom\XPath' into XPath::class is the very thing the ban catches.
