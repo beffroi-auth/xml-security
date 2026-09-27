@@ -165,6 +165,14 @@ final readonly class PeerKey
     public static function fromCertificateBase64(string $base64): self;
     /** @throws InvalidKey a PEM public key */
     public static function fromPublicKeyPem(string $pem): self;
+    /**
+     * @internal for Encryptor only: the session key wrapped under RSA-OAEP with $hash for the mask and for MGF1, the one
+     * openssl_public_encrypt() of the namespace (E-10)
+     *
+     * @throws AlgorithmUnavailable when this build cannot wrap under $hash
+     * @throws EncryptionFailed when the primitive fails: never input
+     */
+    public function wrap(string $sessionKey, OaepHash $hash): string;
 }
 ```
 
