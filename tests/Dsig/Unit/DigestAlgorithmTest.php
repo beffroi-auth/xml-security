@@ -7,6 +7,9 @@ namespace Beffroi\Xml\Tests\Dsig\Unit;
 use Beffroi\Xml\Dsig\DigestAlgorithm;
 use Beffroi\Xml\Dsig\Exception\UnknownDigestAlgorithm;
 use function hash;
+use const OPENSSL_ALGO_SHA256;
+use const OPENSSL_ALGO_SHA384;
+use const OPENSSL_ALGO_SHA512;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -92,5 +95,26 @@ final class DigestAlgorithmTest extends TestCase
         yield 'sha256' => [DigestAlgorithm::Sha256, 'sha256', 32];
         yield 'sha384' => [DigestAlgorithm::Sha384, 'sha384', 48];
         yield 'sha512' => [DigestAlgorithm::Sha512, 'sha512', 64];
+    }
+
+    /**
+     * Section 5.1: the OpenSSL algorithm the two primitives take.
+     */
+    #[Test]
+    #[DataProvider('provideOpensslAlgorithms')]
+    public function itNamesTheOpensslAlgorithm(DigestAlgorithm $algorithm, int $openssl): void
+    {
+        // When / Then
+        static::assertSame($openssl, $algorithm->opensslAlgorithm());
+    }
+
+    /**
+     * @return iterable<string, array{DigestAlgorithm, int}>
+     */
+    public static function provideOpensslAlgorithms(): iterable
+    {
+        yield 'sha256' => [DigestAlgorithm::Sha256, OPENSSL_ALGO_SHA256];
+        yield 'sha384' => [DigestAlgorithm::Sha384, OPENSSL_ALGO_SHA384];
+        yield 'sha512' => [DigestAlgorithm::Sha512, OPENSSL_ALGO_SHA512];
     }
 }
