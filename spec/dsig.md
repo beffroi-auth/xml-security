@@ -115,6 +115,7 @@ enum DigestAlgorithm: string
     public static function fromUri(string $uri): self;
     public function hash(string $bytes): string;   // the raw digest, hash('sha256', $bytes, true) and its siblings
     public function length(): int;                 // 32, 48 or 64 bytes
+    public function opensslAlgorithm(): int;       // OPENSSL_ALGO_SHA256 and its siblings, what openssl_sign() and openssl_verify() take
 }
 ```
 
