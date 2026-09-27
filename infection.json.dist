@@ -18,7 +18,8 @@
             "ignoreSourceCodeByRegex": [
                 "throw new SerializationFailed\\('libxml could not serialize the document \\(I-15\\)\\.'\\);",
                 "throw new AlgorithmUnavailable\\(.*",
-                ".*throw new SigningFailed\\(.*"
+                ".*throw new SigningFailed\\(.*",
+                ".*throw new EncryptionFailed\\(.*"
             ]
         }
     },

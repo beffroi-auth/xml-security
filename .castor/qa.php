@@ -52,6 +52,8 @@ const INFECTION_STRICT_FILES = [
     'src/Enc/Internal/CipherData.php',
     'src/Enc/Decryptor.php',
     'src/Enc/PrivateDecryptionKey.php',
+    'src/Enc/Encryptor.php',
+    'src/Enc/PeerKey.php',
 ];
 
 /**
@@ -266,6 +268,34 @@ function xmlsec(
             . ' --id-attr:Id http://www.w3.org/2000/09/xmldsig#:Signature'
             . ($node === '' ? '' : ' --node-id ' . escapeshellarg($node))
             . ($xpath === '' ? '' : ' --node-xpath ' . escapeshellarg($xpath))
+            . ' '
+            . escapeshellarg($file),
+    ]);
+}
+
+#[AsTask(
+    description: 'Decrypt an encrypted XML file with xmlsec1, the implementation that is not this one (spec/enc.md section 9.3), in an Alpine container, and print the plaintext document: castor xmlsec-decrypt tests/Enc/Fixture/behaviour/encrypted-by-the-encryptor-aes256-gcm.xml',
+)]
+function xmlsec_decrypt(
+    #[AsArgument(description: 'The encrypted file, relative to the working directory')]
+    string $file,
+    #[AsOption(description: 'The private key that unwraps the session key, relative to the working directory')]
+    string $key = 'tests/Enc/Fixture/keys/test-signing-key.pem',
+): void {
+    run([
+        'docker',
+        'run',
+        '--rm',
+        '-i',
+        '-v',
+        getcwd() . ':/project:ro',
+        '-w',
+        '/project',
+        'alpine:3.22',
+        'sh',
+        '-c',
+        'apk add -q xmlsec >/dev/null 2>&1 && xmlsec1 --decrypt --lax-key-search --privkey-pem '
+            . escapeshellarg($key)
             . ' '
             . escapeshellarg($file),
     ]);
