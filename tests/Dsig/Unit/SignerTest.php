@@ -15,6 +15,7 @@ use Beffroi\Xml\Core\Serializer;
 use Beffroi\Xml\Core\Text;
 use Beffroi\Xml\Dsig\DigestAlgorithm;
 use Beffroi\Xml\Dsig\Exception\AlgorithmUnavailable;
+use Beffroi\Xml\Dsig\Exception\InvalidKey;
 use Beffroi\Xml\Dsig\PrivateKey;
 use Beffroi\Xml\Dsig\SignatureAlgorithm;
 use Beffroi\Xml\Dsig\Signer;
@@ -171,6 +172,48 @@ final class SignerTest extends TestCase
         );
         static::assertMatchesRegularExpression('~^[A-Za-z0-9+/]+=*$~', Text::of($x509));
         static::assertTrue(str_starts_with(Text::of($x509), 'MII'));
+    }
+
+    /**
+     * §9.3 row 18, D-17: a certificate hint that is not exactly one certificate is refused before anything is
+     * serialized, a private key first, the one thing that must never reach the peer.
+     */
+    #[Test]
+    #[DataProvider('provideHintsThatAreNotOneCertificate')]
+    public function itRefusesACertificateHintThatIsNotOneCertificate(string $certificatePem): void
+    {
+        // Given
+        $document = Built::responseWithAssertion();
+
+        // Then
+        $this->expectException(InvalidKey::class);
+        $this->expectExceptionMessageIs('The certificate is one PEM block of type CERTIFICATE and nothing else (D-17).');
+
+        // When
+        $this->signer->sign(
+            $document,
+            Built::ASSERTION_ID,
+            $this->key,
+            after: $this->issuer,
+            certificatePem: $certificatePem,
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function provideHintsThatAreNotOneCertificate(): iterable
+    {
+        $key = Fixtures::bytes('keys/test-signing-key.pem');
+        $certificate = Fixtures::bytes('keys/test-signing-certificate.pem');
+
+        yield 'a private key' => [$key];
+        yield 'a key then a certificate' => [$key . $certificate];
+        yield 'a certificate then a key' => [$certificate . $key];
+        yield 'two certificates' => [$certificate . Fixtures::bytes('keys/stranger-certificate.pem')];
+        yield 'text after the certificate' => [$certificate . 'x'];
+        yield 'no content' => ["-----BEGIN CERTIFICATE-----\n\n-----END CERTIFICATE-----\n"];
+        yield 'content that is not base64' => ["-----BEGIN CERTIFICATE-----\nA===\n-----END CERTIFICATE-----\n"];
     }
 
     /**

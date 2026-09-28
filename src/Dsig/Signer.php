@@ -8,6 +8,7 @@ use Beffroi\Xml\Core\Exception\UnknownId;
 use Beffroi\Xml\Core\Exception\MissingChild;
 use Beffroi\Xml\Core\Exception\AmbiguousChild;
 use Beffroi\Xml\Core\Exception\RefusedXml;
+use function base64_decode;
 use function base64_encode;
 use Beffroi\Xml\Core\CanonicalizationMethod;
 use Beffroi\Xml\Core\Canonicalizer;
@@ -19,11 +20,14 @@ use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Core\Serializer;
 use Beffroi\Xml\Dsig\Exception\AlgorithmUnavailable;
+use Beffroi\Xml\Dsig\Exception\InvalidKey;
 use Beffroi\Xml\Dsig\Internal\Names;
 use function chunk_split;
 use Dom\Element;
 use Dom\XMLDocument;
 use InvalidArgumentException;
+use SensitiveParameter;
+use function preg_match;
 use function preg_replace;
 use function rtrim;
 
@@ -49,8 +53,10 @@ final readonly class Signer
      * The document, loaded again, with a ds:Signature over the element of ID $id inserted as its child, after the
      * child named $after or as its first child.
      *
-     * @param ?string $certificatePem when given, a KeyInfo/X509Data/X509Certificate carrying it, for peers that want the hint
+     * @param ?string $certificatePem when given, one PEM certificate (D-17), carried by a KeyInfo/X509Data/X509Certificate
+     *                                 for peers that want the hint
      *
+     * @throws InvalidKey when $certificatePem is not exactly one certificate (D-17)
      * @throws AlgorithmUnavailable a PSS scheme on a build without OPENSSL_PKCS1_PSS_PADDING
      * @throws UnknownId when the loaded document holds no element of that ID
      * @throws MissingChild when $after names no child of the element
@@ -65,6 +71,7 @@ final readonly class Signer
         SigningKeyInterface $key,
         SignatureAlgorithm $algorithm = SignatureAlgorithm::RsaSha256,
         ?Name $after = null,
+        #[SensitiveParameter]
         ?string $certificatePem = null,
         CanonicalizationMethod $method = CanonicalizationMethod::Exclusive,
         DigestAlgorithm $digest = DigestAlgorithm::Sha256,
@@ -75,6 +82,7 @@ final readonly class Signer
         if (! $method->isExclusive()) {
             throw new InvalidArgumentException('The canonicalization method is exclusive, with or without comments (D-4).');
         }
+        $certificate = $certificatePem === null ? null : $this->certificate($certificatePem);
         $loaded = $this->loader->load($this->serializer->serialize($document));
         $element = $loaded->elementById($id);
         $before = $after instanceof Name ? Children::one($element, $after)->nextSibling : $element->firstChild;
@@ -104,14 +112,34 @@ final readonly class Signer
             $this->canonicalizer->canonicalize($signedInfo, $method, InclusiveNamespaces::none())->bytes,
             $algorithm,
         ))));
-        if ($certificatePem !== null) {
+        if ($certificate !== null) {
             $data = $this->child($xml, $this->child($xml, $signature, 'KeyInfo'), 'X509Data');
-            $this->child($xml, $data, 'X509Certificate')->appendChild($xml->createTextNode(
-                preg_replace('~-----[A-Z ]+-----|\s~', '', $certificatePem) ?? '',
-            ));
+            $this->child($xml, $data, 'X509Certificate')->appendChild($xml->createTextNode($certificate));
         }
 
         return $loaded;
+    }
+
+    /**
+     * The base64 of the one certificate $pem holds (D-17): exactly one PEM block of type CERTIFICATE, its content
+     * strict base64, nothing around it but whitespace, so that neither a private key nor a bundle nor a chain
+     * reaches the peer. The base64 is written again from the decoded bytes, on one line.
+     *
+     * @throws InvalidKey
+     */
+    private function certificate(#[SensitiveParameter] string $pem): string
+    {
+        $message = 'The certificate is one PEM block of type CERTIFICATE and nothing else (D-17).';
+        $matches = [];
+        if (preg_match('~\A\s*-----BEGIN CERTIFICATE-----([A-Za-z0-9+/=\s]+)-----END CERTIFICATE-----\s*\z~', $pem, $matches) !== 1) {
+            throw new InvalidKey($message);
+        }
+        $der = base64_decode(preg_replace('~\s+~', '', $matches[1]) ?? '', true);
+        if ($der === false || $der === '') {
+            throw new InvalidKey($message);
+        }
+
+        return base64_encode($der);
     }
 
     /**
