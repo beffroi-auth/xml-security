@@ -57,6 +57,7 @@ Each row is an incident, the rule that answers it, and where the rule lives. The
 | Silent primitive | `openssl_verify()` returns `-1` or `false`, a digest compared with `==` | `openssl_verify()` is compared to `1`; digests with `hash_equals()`; base64 decoded strictly | D-8, `Verifier` |
 | Denial of service | Inclusive canonicalization of a large element with many namespaces, an unbounded number of keys or references | Exclusive canonicalization only; the cheap `SignedInfo` signature is verified before the reference digest is computed, so only a holder of a trusted key makes the verifier canonicalize the element; bounds of section 7 | D-4, D-6, D-14 |
 | Weak keys | RSA below 2048 bits | A verification or signing key below 2048 bits is refused | D-16, `VerificationKey`, `PrivateKey` |
+| A private key sent to the peer | A key, or a bundle holding a key, passed where the certificate of `KeyInfo` is expected | The certificate hint is exactly one PEM certificate, re-encoded from its strict base64 | D-17, `Signer` |
 | Signing what the peer will not see | A built tree whose canonical form differs from its serialized form (measured, [core.md](core.md) section 13) | The signer hashes the loaded form of what was built | D-12, `Signer` |
 
 ## 4. Invariants
@@ -79,6 +80,7 @@ Each invariant is code, never a constructor option or a flag, has at least one t
 - **D-14. Bounded.** The number of verification keys, the decoded length of `SignatureValue`, the length of `DigestValue` (exactly the digest's), the length of any base64 text read, and the prefixes of a `PrefixList` are bounded by the constants of section 7. Denial of service.
 - **D-15. Four OpenSSL calls, one file each.** `openssl_verify()` is called once, in `Verifier`; `openssl_sign()` once, in `PrivateKey`; `openssl_pkey_get_public()` once, in `VerificationKey`; `openssl_pkey_get_private()` once, in `PrivateKey`. The rules of section 8 enforce it, and no other `openssl_*` function is called in the namespace.
 - **D-16. RSA of at least 2048 bits.** A verification key or a private key that is not RSA, or whose modulus is shorter than 2048 bits, is refused when the key object is built. A verification key is read from exactly one PEM block in memory, of the type its factory names (`CERTIFICATE` or `PUBLIC KEY`), whose content is strict base64 with nothing around it but whitespace, or from the base64 of a certificate: a path OpenSSL would open (`file://`), text around the block, a bundle or a chain is refused before OpenSSL reads anything. Weak keys, and a key read from anywhere but the string the consumer gave.
+- **D-17. The certificate hint is a certificate.** The `$certificatePem` a consumer gives `Signer::sign()` is exactly one PEM block of type `CERTIFICATE`, whose content is strict base64, with nothing around it but whitespace; a private key, a bundle holding a key and a certificate, a chain, or any other text is refused with `InvalidKey` before anything is serialized, and `X509Certificate` carries the base64 of the decoded certificate. The parameter is a `SensitiveParameter`, so that a key passed by mistake stays out of the traces. A private key sent to the peer.
 
 ## 5. Public API
 
@@ -255,9 +257,10 @@ final readonly class Signer
      * The document, loaded again, with a ds:Signature over the element of ID $id inserted as its child, after the
      * child named $after or as its first child.
      *
-     * @param ?string $certificatePem when given, a KeyInfo/X509Data/X509Certificate carrying it, for peers that want the hint
+     * @param ?string $certificatePem when given, one PEM certificate (D-17), carried by a KeyInfo/X509Data/X509Certificate for peers that want the hint
      * @throws UnknownId when the loaded document holds no element of that ID
-     * @throws AlgorithmUnavailable, SigningFailed, InvalidKey
+     * @throws InvalidKey when $certificatePem is not exactly one certificate (D-17)
+     * @throws AlgorithmUnavailable, SigningFailed
      * @throws RefusedXml what Core's serializer and loader refuse of the document (core.md 6.5, 6.1)
      * @throws MissingChild, AmbiguousChild when $after names no child or several
      */
@@ -267,7 +270,7 @@ final readonly class Signer
         SigningKeyInterface $key,
         SignatureAlgorithm $algorithm = SignatureAlgorithm::RsaSha256,
         ?Name $after = null,
-        ?string $certificatePem = null,
+        #[\SensitiveParameter] ?string $certificatePem = null,
         CanonicalizationMethod $method = CanonicalizationMethod::Exclusive,
         DigestAlgorithm $digest = DigestAlgorithm::Sha256,
     ): Document;
@@ -292,7 +295,7 @@ final class AlgorithmUnavailable extends SignatureRefused {}      // a PSS case 
 final class WrongReference extends SignatureRefused {}            // D-2: the reference does not name the claimed element
 final class SignatureMismatch extends SignatureRefused {}         // no trusted key verifies SignedInfo
 final class DigestMismatch extends SignatureRefused {}            // the element is not what was signed
-final class InvalidKey extends SignatureRefused {}                // D-16, or no key in the PEM
+final class InvalidKey extends SignatureRefused {}                // D-16, or no key in the PEM; D-17, a certificate hint that is not one certificate
 final class LimitExceeded extends SignatureRefused {}             // D-14, the bound named
 final class SigningFailed extends \RuntimeException {}            // the primitive failed while signing: never input
 ```
@@ -321,13 +324,13 @@ Steps 3 and 4 refuse before any cryptography; step 6 runs before step 8 so that 
 
 `Signer::sign($document, $id, $key, $algorithm, $after, $certificatePem, $method, $digest)`:
 
-1. **Availability.** A PSS method on a build without the constant is `AlgorithmUnavailable`, before anything is serialized.
+1. **Availability and the certificate.** A PSS method on a build without the constant is `AlgorithmUnavailable`, and a `$certificatePem` that is not exactly one PEM block of type `CERTIFICATE` with strict base64 content is `InvalidKey` (D-17), before anything is serialized.
 2. **The round trip.** `Serializer::serialize($document)` (which refuses what would not survive a parser, [core.md](core.md) 6.5), then `$this->loader->load($bytes)`: the loaded document is the one the peer will see (D-12).
 3. **The element.** `$loaded->elementById($id)` (`UnknownId` otherwise); `$after` names a child of it through `Children::one()`, or is `null`.
 4. **The digest.** `Canonicalizer::canonicalize($element, CanonicalizationMethod::Exclusive, InclusiveNamespaces::none())`, always without comments (the node-set of a same-document reference omits them, 6.1 step 8), no exclusion, since the `Signature` does not exist yet; `$digest->hash()` of the bytes.
 5. **SignedInfo.** Built with `createElementNS()` and the prefix `ds` on every element (the rule of [core.md](core.md) 6.5 for a built tree): `CanonicalizationMethod` with the URI of `$method`, `SignatureMethod` with the URI of `$algorithm`, one `Reference` with `URI="#$id"`, `Transforms` with the enveloped transform then `$method`'s URI, `DigestMethod`, `DigestValue` as base64. No `InclusiveNamespaces` is written: the namespace forms of the peer are its own business, and an exclusive form without a list is what the interoperability targets emit.
 6. **The signature.** The `ds:Signature` element, holding `SignedInfo`, is inserted into `$element` before the sibling that follows `$after`, or as the first child; then `SignedInfo` is canonicalized where it stands, with `$method` and no prefix list, and `$key->sign($canonical->bytes, $algorithm)` gives the bytes of `SignatureValue`, written as base64 with line breaks every 76 characters, as the interoperability targets write it.
-7. **KeyInfo.** When `$certificatePem` is given, `KeyInfo/X509Data/X509Certificate` holds its base64, the PEM armour and whitespace removed.
+7. **KeyInfo.** When `$certificatePem` is given, `KeyInfo/X509Data/X509Certificate` holds the base64 of the certificate step 1 decoded, on one line.
 8. **The result.** The loaded, signed `Document`. The consumer serializes it; `Core`'s serializer refuses nothing of it, since every element the signer built carries a prefix and the loaded part round-trips by construction of step 2.
 
 `SignedInfo` is canonicalized after insertion, where it will be when the peer canonicalizes it: a built subtree whose elements all carry a prefix canonicalizes to the same bytes before and after a round trip (measured, [core.md](core.md) section 13), and the enveloped transform of step 4 is what the peer will apply, since the `Signature` is inside the element and excluded from its digest.
@@ -444,6 +447,7 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | `isAvailable()` | `true` for the PKCS#1 v1.5 cases everywhere, `true` for PSS on 8.5, `false` on 8.4 |
 | `VerificationKey::fromCertificateBase64()` of Entra's certificate, with line breaks inside | builds |
 | A `SignatureRefused` message | ends with the invariant in parentheses, holds no `#`, no URI, no base64 |
+| `sign()` with a private key, a key and a certificate in either order, two certificates, text after the certificate, no content or content that is not base64, as `$certificatePem` | `InvalidKey` (D-17), before anything is serialized |
 
 ### 9.4 Real documents
 
