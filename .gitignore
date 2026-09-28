@@ -4,6 +4,7 @@
 /.ci-tools/coverage/
 /.ci-tools/.phpunit.cache/
 /.ci-tools/infection.txt
+/.ci-tools/oracle/
 /infection.json
 /.phpunit.cache/
 /.phpunit.result.cache

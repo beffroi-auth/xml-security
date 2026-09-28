@@ -104,6 +104,26 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  oracle:
+    name: "4️⃣ Oracle (xmlsec1)"
+    needs: [quality]
+    # The signer against the implementation that is not this one (spec/dsig.md section 9.3 row 10): every scheme of
+    # PHP 8.5 signed in the phpqa image, both signatures of each document verified by xmlsec1 in Alpine. Two images,
+    # hence Docker on the runner rather than a job container; castor xmlsec-oracle is the same on a workstation.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: "Sign with every scheme of the build"
+        run: >-
+          docker run --rm -v "$PWD:/project" -w /project -e XMLSEC_ORACLE=.ci-tools/oracle
+          ghcr.io/spomky-labs/phpqa:8.5 sh -c 'composer install --no-interaction --no-progress --quiet
+          && castor libxml
+          && composer exec -- phpunit --configuration .ci-tools/phpunit.xml.dist --filter SignerOracleTest'
+      - name: "Verify both signatures of each with xmlsec1"
+        run: >-
+          docker run --rm -v "$PWD:/project:ro" -w /project alpine:3.22
+          sh -c 'apk add -q xmlsec && xmlsec1 --version && sh tests/Dsig/Fixture/oracle/verify-every-scheme.sh .ci-tools/oracle'
+
   infection:
     name: "3️⃣ Mutation Testing"
     needs: [tests]

@@ -261,6 +261,44 @@ function xmlsec(
     ]);
 }
 
+#[AsTask(
+    description: 'Sign a response and its assertion with every scheme this build offers, then verify both signatures of each with xmlsec1 (spec/dsig.md section 9.3 row 10): PHP_VERSION=8.5 castor xmlsec-oracle',
+)]
+function xmlsec_oracle(): void
+{
+    $directory = '.ci-tools/oracle';
+    foreach (glob($directory . '/*.xml') ?: [] as $file) {
+        unlink($file);
+    }
+    phpqa(
+        [
+            'composer',
+            'exec',
+            '--',
+            'phpunit',
+            '--configuration',
+            '.ci-tools/phpunit.xml.dist',
+            '--filter',
+            'SignerOracleTest',
+        ],
+        ['XMLSEC_ORACLE' => $directory],
+    );
+    run([
+        'docker',
+        'run',
+        '--rm',
+        '-i',
+        '-v',
+        getcwd() . ':/project:ro',
+        '-w',
+        '/project',
+        'alpine:3.22',
+        'sh',
+        '-c',
+        'apk add -q xmlsec >/dev/null 2>&1 && sh tests/Dsig/Fixture/oracle/verify-every-scheme.sh ' . $directory,
+    ]);
+}
+
 #[AsTask(description: 'Run PHP parallel linter')]
 function lint(): void
 {
