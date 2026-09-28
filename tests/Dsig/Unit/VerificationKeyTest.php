@@ -9,6 +9,7 @@ use Beffroi\Xml\Dsig\VerificationKey;
 use Beffroi\Xml\Tests\Dsig\Support\Fixtures;
 use function implode;
 use function openssl_pkey_get_details;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
@@ -96,20 +97,74 @@ final class VerificationKeyTest extends TestCase
     }
 
     /**
-     * D-16: a PEM that openssl cannot read as a certificate or a public key.
+     * D-16: one block of type CERTIFICATE whose bytes openssl cannot read as a certificate.
      */
     #[Test]
-    #[TestWith(['not a pem'], 'plain text')]
-    #[TestWith(["-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"], 'armour around garbage')]
-    #[TestWith([''], 'empty')]
-    public function itRefusesAPemThatHoldsNoKey(string $pem): void
+    public function itRefusesACertificateBlockAroundGarbage(): void
     {
         // Then
         $this->expectException(InvalidKey::class);
         $this->expectExceptionMessageIs('The PEM holds no certificate and no public key (D-16).');
 
         // When
+        VerificationKey::fromCertificatePem("-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
+    }
+
+    /**
+     * §9.2 row 41, D-16: what is not exactly one block of type CERTIFICATE never reaches openssl, a path to a file
+     * that holds one first.
+     */
+    #[Test]
+    #[DataProvider('provideWhatIsNotOneCertificateBlock')]
+    public function itRefusesWhatIsNotOneCertificateBlock(string $pem): void
+    {
+        // Then
+        $this->expectException(InvalidKey::class);
+        $this->expectExceptionMessageIs('A certificate PEM is one block of type CERTIFICATE and nothing else (D-16).');
+
+        // When
         VerificationKey::fromCertificatePem($pem);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function provideWhatIsNotOneCertificateBlock(): iterable
+    {
+        $certificate = Fixtures::bytes('keys/test-signing-certificate.pem');
+
+        yield 'plain text' => ['not a pem'];
+        yield 'empty' => [''];
+        yield 'a file:// path to a certificate' => ['file://' . Fixtures::path('keys/test-signing-certificate.pem')];
+        yield 'text before the armour' => ['issued to the IdP' . "\n" . $certificate];
+        yield 'two certificates' => [$certificate . Fixtures::bytes('keys/stranger-certificate.pem')];
+        yield 'a public key' => [self::publicKeyPem()];
+        yield 'a private key' => [Fixtures::bytes('keys/test-signing-key.pem')];
+    }
+
+    /**
+     * §9.2 row 41, D-16: what is not exactly one block of type PUBLIC KEY never reaches openssl.
+     */
+    #[Test]
+    #[DataProvider('provideWhatIsNotOnePublicKeyBlock')]
+    public function itRefusesWhatIsNotOnePublicKeyBlock(string $pem): void
+    {
+        // Then
+        $this->expectException(InvalidKey::class);
+        $this->expectExceptionMessageIs('A public key PEM is one block of type PUBLIC KEY and nothing else (D-16).');
+
+        // When
+        VerificationKey::fromPublicKeyPem($pem);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function provideWhatIsNotOnePublicKeyBlock(): iterable
+    {
+        yield 'a certificate' => [Fixtures::bytes('keys/test-signing-certificate.pem')];
+        yield 'a file:// path' => ['file://' . Fixtures::path('keys/test-signing-certificate.pem')];
+        yield 'two public keys' => [self::publicKeyPem() . self::publicKeyPem()];
     }
 
     /**
@@ -143,6 +198,20 @@ final class VerificationKeyTest extends TestCase
 
         // When
         VerificationKey::fromCertificatePem($pem);
+    }
+
+    /**
+     * The PEM of the test key's public half, as openssl writes it.
+     */
+    private static function publicKeyPem(): string
+    {
+        $details = openssl_pkey_get_details(
+            VerificationKey::fromCertificatePem(Fixtures::bytes('keys/test-signing-certificate.pem'))->handle(),
+        );
+        static::assertNotFalse($details);
+        static::assertIsString($details['key']);
+
+        return $details['key'];
     }
 
     /**
