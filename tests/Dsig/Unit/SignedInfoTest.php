@@ -6,10 +6,12 @@ namespace Beffroi\Xml\Tests\Dsig\Unit;
 
 use Beffroi\Xml\Core\CanonicalizationMethod;
 use Beffroi\Xml\Core\Children;
+use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Dsig\Exception\MalformedSignature;
 use Beffroi\Xml\Dsig\SignatureAlgorithm;
 use Beffroi\Xml\Dsig\SignedInfo;
+use Beffroi\Xml\Tests\Core\Support\Foreign;
 use Beffroi\Xml\Tests\Dsig\Support\Loaded;
 use Dom\Element;
 use PHPUnit\Framework\Attributes\Test;
@@ -109,6 +111,23 @@ final class SignedInfoTest extends TestCase
 
         // When
         SignedInfo::of($element);
+    }
+
+    /**
+     * Core I-4: an element of a document parsed outside the loader.
+     */
+    #[Test]
+    public function itRefusesAnElementOfAForeignDocument(): void
+    {
+        // Given
+        $root = Foreign::parse('<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"/>')->documentElement;
+        static::assertNotNull($root);
+
+        // Then
+        $this->expectException(ForeignNode::class);
+
+        // When
+        SignedInfo::of($root);
     }
 
     private function signedInfoOf(Element $signed): Element
