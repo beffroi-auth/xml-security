@@ -142,6 +142,7 @@ final readonly class Reference
         if (! $inclusiveNamespaces instanceof Element) {
             return [$method, InclusiveNamespaces::none()];
         }
+        Structure::none($inclusiveNamespaces, 'An InclusiveNamespaces holds no child (D-9).');
         $prefixList = Attributes::optional(
             $inclusiveNamespaces,
             Names::attribute('PrefixList'),
