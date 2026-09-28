@@ -8,7 +8,6 @@ use Throwable;
 use Beffroi\Xml\Core\Exception\DoctypeRefused;
 use Beffroi\Xml\Core\Exception\DuplicateId;
 use Beffroi\Xml\Core\Exception\MissingChild;
-use Beffroi\Xml\Core\Exception\MixedContent;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Dsig\Exception\DigestMismatch;
 use Beffroi\Xml\Dsig\Exception\MalformedSignature;
@@ -203,8 +202,8 @@ final class AdversarialTest extends TestCase
         yield 'an element inside SignatureValue' => [
             'adversarial-signature-value-with-element-refused.xml',
             $id,
-            MixedContent::class,
-            'The element has a child that is neither text, CDATA, comment nor processing instruction (I-12).',
+            MalformedSignature::class,
+            'A SignatureValue holds nothing but text (D-9).',
         ];
         yield 'a second Signature in another namespace, inside the signed content' => [
             'adversarial-second-signature-other-namespace-refused.xml',
