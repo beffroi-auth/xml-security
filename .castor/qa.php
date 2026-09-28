@@ -233,6 +233,8 @@ function xmlsec(
     string $certificate = 'tests/Dsig/Fixture/keys/test-signing-certificate.pem',
     #[AsOption(description: 'The Id of the ds:Signature to verify when the file holds several')]
     string $node = '',
+    #[AsOption(description: 'An XPath naming the ds:Signature to verify, for one that carries no Id')]
+    string $xpath = '',
 ): void {
     run([
         'docker',
@@ -253,6 +255,7 @@ function xmlsec(
             . ' --id-attr:ID urn:oasis:names:tc:SAML:2.0:metadata:EntityDescriptor'
             . ' --id-attr:Id http://www.w3.org/2000/09/xmldsig#:Signature'
             . ($node === '' ? '' : ' --node-id ' . escapeshellarg($node))
+            . ($xpath === '' ? '' : ' --node-xpath ' . escapeshellarg($xpath))
             . ' '
             . escapeshellarg($file),
     ]);
