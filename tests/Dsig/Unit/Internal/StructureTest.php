@@ -144,6 +144,39 @@ final class StructureTest extends TestCase
     }
 
     /**
+     * D-9, Core I-12: the text of an element, read through Text::of(), a comment skipped.
+     */
+    #[Test]
+    public function itReadsTheTextOfAnElement(): void
+    {
+        // Given
+        $document = Loaded::document('<a xmlns="urn:x">te<!--comment-->xt</a>');
+
+        // When
+        $text = Structure::text($document->root(), 'unused');
+
+        // Then
+        static::assertSame('text', $text);
+    }
+
+    /**
+     * D-9: an element inside a text is refused under the rule of the namespace, never with Core's MixedContent.
+     */
+    #[Test]
+    public function itRefusesAnElementInsideTheText(): void
+    {
+        // Given
+        $document = Loaded::document('<a xmlns="urn:x">te<b/>xt</a>');
+
+        // Then
+        $this->expectException(MalformedSignature::class);
+        $this->expectExceptionMessageIs('nothing but text (D-9).');
+
+        // When
+        Structure::text($document->root(), 'nothing but text (D-9).');
+    }
+
+    /**
      * D-1, D-9: direct children only; a grandchild of the name is not found.
      */
     #[Test]

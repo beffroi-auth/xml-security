@@ -6,7 +6,9 @@ namespace Beffroi\Xml\Dsig\Internal;
 
 use function array_any;
 use Beffroi\Xml\Core\Children;
+use Beffroi\Xml\Core\Exception\MixedContent;
 use Beffroi\Xml\Core\Name;
+use Beffroi\Xml\Core\Text;
 use Beffroi\Xml\Dsig\Exception\MalformedSignature;
 use function count;
 use Dom\Element;
@@ -73,6 +75,21 @@ final readonly class Structure
     public static function none(Element $element, string $message): void
     {
         if (Children::all($element) !== []) {
+            throw new MalformedSignature($message);
+        }
+    }
+
+    /**
+     * The text of $element through Core's Text::of() (D-9), an element child refused under the rule of the namespace
+     * rather than Core's MixedContent, so that the model throws nothing but a SignatureRefused.
+     *
+     * @throws MalformedSignature
+     */
+    public static function text(Element $element, string $message): string
+    {
+        try {
+            return Text::of($element);
+        } catch (MixedContent) {
             throw new MalformedSignature($message);
         }
     }

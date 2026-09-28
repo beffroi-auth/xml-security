@@ -329,6 +329,16 @@ final class SignatureTest extends TestCase
             MalformedSignature::class,
             'A Reference holds exactly one DigestMethod (D-9).',
         ];
+        yield 'an element inside SignatureValue' => [
+            'signature-value-with-element-refused.xml',
+            MalformedSignature::class,
+            'A SignatureValue holds nothing but text (D-9).',
+        ];
+        yield 'an element inside DigestValue' => [
+            'digest-value-with-element-refused.xml',
+            MalformedSignature::class,
+            'A DigestValue holds nothing but text (D-9).',
+        ];
     }
 
     /**
