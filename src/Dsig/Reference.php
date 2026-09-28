@@ -10,7 +10,6 @@ use Beffroi\Xml\Core\Children;
 use Beffroi\Xml\Core\Exception\UnknownCanonicalizationMethod;
 use Beffroi\Xml\Core\InclusiveNamespaces;
 use Beffroi\Xml\Core\NcName;
-use Beffroi\Xml\Core\Text;
 use Beffroi\Xml\Dsig\Exception\LimitExceeded;
 use Beffroi\Xml\Dsig\Exception\MalformedSignature;
 use Beffroi\Xml\Dsig\Internal\Base64;
@@ -72,8 +71,9 @@ final readonly class Reference
         $algorithm = self::digestMethod(
             Structure::one($element, $digestMethod, 'A Reference holds exactly one DigestMethod (D-9).'),
         );
-        $digest = Base64::decode(Text::of(
+        $digest = Base64::decode(Structure::text(
             Structure::one($element, $digestValue, 'A Reference holds exactly one DigestValue (D-9).'),
+            'A DigestValue holds nothing but text (D-9).',
         ));
         if (strlen($digest) !== $algorithm->length()) {
             throw new MalformedSignature('A DigestValue is not the length of its digest (D-14).');

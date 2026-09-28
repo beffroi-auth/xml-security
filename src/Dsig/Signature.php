@@ -6,7 +6,6 @@ namespace Beffroi\Xml\Dsig;
 
 use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Core\Document;
-use Beffroi\Xml\Core\Text;
 use Beffroi\Xml\Dsig\Exception\LimitExceeded;
 use Beffroi\Xml\Dsig\Exception\MalformedSignature;
 use Beffroi\Xml\Dsig\Internal\Base64;
@@ -63,8 +62,9 @@ final readonly class Signature
         $signed = SignedInfo::of(
             Structure::one($element, $signedInfo, 'A Signature holds exactly one SignedInfo (D-9).'),
         );
-        $value = Base64::decode(Text::of(
+        $value = Base64::decode(Structure::text(
             Structure::one($element, $signatureValue, 'A Signature holds exactly one SignatureValue (D-9).'),
+            'A SignatureValue holds nothing but text (D-9).',
         ));
         if (strlen($value) < self::MIN_SIGNATURE_BYTES || strlen($value) > self::MAX_SIGNATURE_BYTES) {
             throw new LimitExceeded(sprintf(
