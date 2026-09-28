@@ -115,7 +115,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: "Sign with every scheme of the build"
         run: >-
-          docker run --rm -v "$PWD:/project" -w /project -e XMLSEC_ORACLE=.ci-tools/oracle
+          docker run --rm -v "$PWD:/project" -w /project -e HOME=/tmp -e XMLSEC_ORACLE=.ci-tools/oracle
           ghcr.io/spomky-labs/phpqa:8.5 sh -c 'composer install --no-interaction --no-progress --quiet
           && castor libxml
           && composer exec -- phpunit --configuration .ci-tools/phpunit.xml.dist --filter SignerOracleTest'
