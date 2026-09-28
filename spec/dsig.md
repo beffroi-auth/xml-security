@@ -440,7 +440,7 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | `sign()` with a certificate | `KeyInfo/X509Data/X509Certificate` holds the base64, without armour or whitespace |
 | `sign()` without a certificate | no `KeyInfo` |
 | `sign()` leaves the given document untouched | the given document serializes to the same bytes before and after |
-| `sign()` with each algorithm and digest, exclusive and exclusive with comments | xmlsec1 verifies each |
+| `sign()` with each algorithm and digest, exclusive and exclusive with comments | xmlsec1 verifies each, on every run of the CI: the job Oracle has `SignerOracleTest` sign a response and its assertion with every scheme PHP 8.5 offers, then xmlsec1 verifies both signatures of each document (`tests/Dsig/Fixture/oracle`) |
 | `sign()` on a document that would not round-trip | the refusal of `Core`'s serializer, before anything is signed |
 | `sign()` with a `SigningKeyInterface` that is not `PrivateKey` | the bytes it returns are the `SignatureValue`; a stub records what it was asked to sign, the canonical `SignedInfo` |
 | `SignatureAlgorithm::fromUri()` and `DigestAlgorithm::fromUri()` round-trip each case | the URI comes back |
@@ -484,13 +484,13 @@ src/Dsig/              SignatureAlgorithm, DigestAlgorithm, VerificationKey, Ver
 tests/Dsig/            Unit/ (one class per class of src/Dsig/, plus TraceabilityTest, AdversarialTest, RealDocumentsTest,
                        PerformanceTest), Support/ (the test keys, the xmlsec1 runner for the developer who regenerates the
                        vectors, the loaded fixtures), Fixture/ (vectors, hostile, behaviour, real, keys: 9.1 to 9.4 and the
-                       adversarial pass, each directory with a README carrying the commands)
+                       adversarial pass, oracle: the xmlsec1 check of 9.3, each directory with a README carrying the commands)
 .ci-tools/             phpstan.neon extended with the function rules of section 8; deptrac.yaml's Dsig layer, on Core only;
                        the strict Infection list of section 9 in .castor/qa.php
 composer.json          ext-openssl added to the requirements
 ```
 
-The CI prints, next to the libxml version, the OpenSSL version and whether `OPENSSL_PKCS1_PSS_PADDING` is defined on the build, so that the PSS gap of PHP 8.4 and of OpenSSL before 3.1 is visible on every run rather than hidden.
+The job Oracle of the CI signs in the phpqa image of PHP 8.5 and verifies with xmlsec1 in Alpine 3.22, `castor xmlsec-oracle` does the same on the developer's machine: a PSS signature is random, so the oracle runs on every build rather than on a fixture pinned once. The CI prints, next to the libxml version, the OpenSSL version and whether `OPENSSL_PKCS1_PSS_PADDING` is defined on the build, so that the PSS gap of PHP 8.4 and of OpenSSL before 3.1 is visible on every run rather than hidden.
 
 ## 11. Out of scope
 
