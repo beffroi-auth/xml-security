@@ -7,7 +7,8 @@ and asserts the same bytes, so that a change of the signer's output is a change 
 
 The three `signed-by-the-signer-*.xml` files were produced on 27 September 2026 in the phpqa image (PHP 8.5.10,
 OpenSSL 3.5.7) and verified by xmlsec1 1.3.7 in Alpine 3.22, the implementation that is not this one
-(spec/dsig.md section 9.1). The check, run in `tests/Dsig/Fixture/`, or `castor xmlsec <file>` from the root:
+(spec/dsig.md section 9.1). The check, run in `tests/Dsig/Fixture/`, or `castor xmlsec <file>` from the root, with
+`--xpath` for a `Signature` that carries no `Id`:
 
 ```
 I="--id-attr:ID urn:oasis:names:tc:SAML:2.0:assertion:Assertion --id-attr:ID urn:oasis:names:tc:SAML:2.0:protocol:Response --id-attr:ID urn:oasis:names:tc:SAML:2.0:metadata:EntityDescriptor"
