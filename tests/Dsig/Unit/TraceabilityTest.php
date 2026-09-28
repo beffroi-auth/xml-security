@@ -31,14 +31,14 @@ final class TraceabilityTest extends TestCase
     }
 
     /**
-     * Section 4: D-1 to D-16, each cited by a test.
+     * Section 4: D-1 to D-17, each cited by a test.
      */
     #[Test]
     public function everyInvariantIsCitedByATest(): void
     {
         // Given
         $invariants = $this->traceability->invariants();
-        static::assertCount(16, $invariants);
+        static::assertCount(17, $invariants);
 
         // When
         $uncited = array_diff($invariants, $this->traceability->citedInvariants());
