@@ -263,6 +263,7 @@ final readonly class Signer
      * @throws AlgorithmUnavailable, SigningFailed
      * @throws RefusedXml what Core's serializer and loader refuse of the document (core.md 6.5, 6.1)
      * @throws MissingChild, AmbiguousChild when $after names no child or several
+     * @throws \InvalidArgumentException when $method is not exclusive (D-4), or the element already holds a ds:Signature (D-1)
      */
     public function sign(
         Document $document,
@@ -326,7 +327,7 @@ Steps 3 and 4 refuse before any cryptography; step 6 runs before step 8 so that 
 
 1. **Availability and the certificate.** A PSS method on a build without the constant is `AlgorithmUnavailable`, and a `$certificatePem` that is not exactly one PEM block of type `CERTIFICATE` with strict base64 content is `InvalidKey` (D-17), before anything is serialized.
 2. **The round trip.** `Serializer::serialize($document)` (which refuses what would not survive a parser, [core.md](core.md) 6.5), then `$this->loader->load($bytes)`: the loaded document is the one the peer will see (D-12).
-3. **The element.** `$loaded->elementById($id)` (`UnknownId` otherwise); `$after` names a child of it through `Children::one()`, or is `null`.
+3. **The element.** `$loaded->elementById($id)` (`UnknownId` otherwise); an element that already holds a `ds:Signature` child is refused (`InvalidArgumentException`, D-1), since a second one makes a document the verifier refuses and another verifier may read either; `$after` names a child of it through `Children::one()`, or is `null`.
 4. **The digest.** `Canonicalizer::canonicalize($element, CanonicalizationMethod::Exclusive, InclusiveNamespaces::none())`, always without comments (the node-set of a same-document reference omits them, 6.1 step 8), no exclusion, since the `Signature` does not exist yet; `$digest->hash()` of the bytes.
 5. **SignedInfo.** Built with `createElementNS()` and the prefix `ds` on every element (the rule of [core.md](core.md) 6.5 for a built tree): `CanonicalizationMethod` with the URI of `$method`, `SignatureMethod` with the URI of `$algorithm`, one `Reference` with `URI="#$id"`, `Transforms` with the enveloped transform then `$method`'s URI, `DigestMethod`, `DigestValue` as base64. No `InclusiveNamespaces` is written: the namespace forms of the peer are its own business, and an exclusive form without a list is what the interoperability targets emit.
 6. **The signature.** The `ds:Signature` element, holding `SignedInfo`, is inserted into `$element` before the sibling that follows `$after`, or as the first child; then `SignedInfo` is canonicalized where it stands, with `$method` and no prefix list, and `$key->sign($canonical->bytes, $algorithm)` gives the bytes of `SignatureValue`, written as base64 with line breaks every 76 characters, as the interoperability targets write it.
@@ -448,6 +449,7 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | `VerificationKey::fromCertificateBase64()` of Entra's certificate, with line breaks inside | builds |
 | A `SignatureRefused` message | ends with the invariant in parentheses, holds no `#`, no URI, no base64 |
 | `sign()` with a private key, a key and a certificate in either order, two certificates, text after the certificate, no content or content that is not base64, as `$certificatePem` | `InvalidKey` (D-17), before anything is serialized |
+| `sign()` on an element that already holds a `Signature` | `InvalidArgumentException` (D-1), nothing signed |
 
 ### 9.4 Real documents
 
