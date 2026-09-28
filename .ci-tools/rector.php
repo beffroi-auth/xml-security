@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Rector\Config\RectorConfig;
 use Rector\Php55\Rector\String_\StringClassNameToClassConstantRector;
+use Rector\Php71\Rector\FuncCall\RemoveExtraParametersRector;
 use Rector\PHPUnit\CodeQuality\Rector\ClassMethod\AddInstanceofAssertForNullableArgumentRector;
 use Rector\PHPUnit\CodeQuality\Rector\Class_\PreferPHPUnitThisCallRector;
 use Rector\PHPUnit\Set\PHPUnitSetList;
@@ -40,6 +41,9 @@ $builder->withSkip([
     // assertNotNull() narrows a nullable node for PHPStan already; the assertInstanceOf() this rule adds after
     // it is one PHPStan then reports as always true.
     AddInstanceofAssertForNullableArgumentRector::class,
+    // openssl_sign() and openssl_verify() take a fifth parameter, the padding, on PHP 8.5 (spec/dsig.md section
+    // 13); Rector reads the PHP 8.4 signatures and would strip the argument the PSS schemes pass.
+    RemoveExtraParametersRector::class,
 ]);
 $builder->withParallel();
 $builder->withImportNames();

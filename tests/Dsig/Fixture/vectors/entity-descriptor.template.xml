@@ -1,0 +1,27 @@
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ID="_entity-m1n2o3" entityID="https://idp.example.org">
+  <ds:Signature>
+    <ds:SignedInfo>
+      <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+      <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <ds:Reference URI="#_entity-m1n2o3">
+        <ds:Transforms>
+          <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+          <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+        </ds:Transforms>
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue></ds:DigestValue>
+      </ds:Reference>
+    </ds:SignedInfo>
+    <ds:SignatureValue></ds:SignatureValue>
+  </ds:Signature>
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo>
+        <ds:X509Data>
+          <ds:X509Certificate>MIIDTTCCAjWgAwIBAgIUG4P+j+6wL+YCW0WUrwOVNYPuohowDQYJKoZIhvcNAQELBQAwNjE0MDIGA1UEAwwreG1sLXNlY3VyaXR5IHRlc3Qgc2lnbmluZyBrZXksIG5vdCBhIHNlY3JldDAeFw0yNjA5MjcxMTEyNTFaFw00NjA5MjIxMTEyNTFaMDYxNDAyBgNVBAMMK3htbC1zZWN1cml0eSB0ZXN0IHNpZ25pbmcga2V5LCBub3QgYSBzZWNyZXQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCtSwGRIyDVRSDZMgu/gX3bD+iTw7s90Nu4kZRB+L5VSjLbfavbFzvHnolj4yB1fr3YsZNVD8ReE7/XLP2YvY60BRHecMHPG1aIqq9SDg+mTiS5l9oLcHHcEYUuFTx10DQ7HAr+6nV1EGKZOZy4XbchUrZvcRMRLvCBWOCK0Ce04qxfnKv3LYar7Y9PwHSHseCWidG/CDhRwthu6s2fgFQYS7a7I8InL8K/gFeEc/wSEM4i/4OEar7sDIa/e4YtKjwaDSmfw7ubxeKx/Xj/kgotu+knQP5RNla0VuNBivmee4E4se9BInsg8VUZlqnTr5UIW3cQwshNBGKru9U4sloLAgMBAAGjUzBRMB0GA1UdDgQWBBTwlIfMWjNMpY2HK6D0P02++LkVqjAfBgNVHSMEGDAWgBTwlIfMWjNMpY2HK6D0P02++LkVqjAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQAG7Cdod54RK3gW1oYwlI0N2eHPtF6cSaRgjfbloDdAV6DcszW7EBrydNEr0msBPsgBYUJCa0Au/NZa2n5ilA2DKiat0qBX8MXTq1PvtwYcuIAuDC7mmki7+1HHmDk2U8yd7AsdoHQNZCgeu65iEOtdLHtNVZbKBBzw2f09xnMC6zPxmIpkg27Nmq5hG3rosR1byKvArzMiYYC68MWGy3f+5o6ngahBFQYq6213wYExT9ZWEvONZ/G0SYbS4T9NmPf0SQJvh8kFxCDYuJ3idCtjiwVtTrNLL+z9ktr6jZxST3zWQ414eHCywTwkw5iNC+knbWO4kMqL/36hrQG5vvvr</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.org/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>
