@@ -217,6 +217,29 @@ final class SignerTest extends TestCase
     }
 
     /**
+     * §9.3 row 19, D-1: an element that already holds a Signature is not signed again, which would make a document
+     * the verifier refuses.
+     */
+    #[Test]
+    public function itRefusesAnElementThatAlreadyHoldsASignature(): void
+    {
+        // Given
+        $signed = $this->signer->sign(
+            Built::responseWithAssertion(),
+            Built::ASSERTION_ID,
+            $this->key,
+            after: $this->issuer,
+        );
+
+        // Then
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('The element already holds a ds:Signature, and a second one is what D-1 refuses (D-1).');
+
+        // When
+        $this->signer->sign($signed, Built::ASSERTION_ID, $this->key, after: $this->issuer);
+    }
+
+    /**
      * §9.3 row 8: without a certificate, no KeyInfo.
      */
     #[Test]
