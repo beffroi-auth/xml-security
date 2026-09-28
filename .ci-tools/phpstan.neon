@@ -83,6 +83,14 @@ parameters:
 		- ReflectionProperty
 		- ReflectionFunction
 		- ReflectionNamedType
+		# spec/dsig.md section 8: the digests and paddings the namespace never names
+		- OPENSSL_ALGO_SHA1
+		- OPENSSL_ALGO_MD5
+		- OPENSSL_ALGO_MD4
+		- OPENSSL_ALGO_DSS1
+		- OPENSSL_PKCS1_PADDING
+		- OPENSSL_NO_PADDING
+		- OPENSSL_SSLV23_PADDING
 	bannedCalls:
 		-
 			method: getElementById
@@ -156,13 +164,62 @@ parameters:
 		-
 			method: createEntityReference
 			allowedIn: []
+		# spec/dsig.md section 8, D-15: four OpenSSL functions in one file each, the rest never
+		-
+			function: openssl_verify
+			allowedIn: [src/Dsig/Verifier.php]
+		-
+			function: openssl_sign
+			allowedIn: [src/Dsig/PrivateKey.php]
+		-
+			function: openssl_pkey_get_public
+			allowedIn: [src/Dsig/VerificationKey.php]
+		-
+			function: openssl_pkey_get_private
+			allowedIn: [src/Dsig/PrivateKey.php]
+		-
+			function: openssl_private_encrypt
+			allowedIn: []
+		-
+			function: openssl_public_decrypt
+			allowedIn: []
+		-
+			function: openssl_private_decrypt
+			allowedIn: []
+		-
+			function: openssl_public_encrypt
+			allowedIn: []
+		-
+			function: openssl_x509_read
+			allowedIn: []
+		-
+			function: openssl_x509_parse
+			allowedIn: []
+		-
+			function: openssl_x509_export
+			allowedIn: []
+		-
+			function: openssl_x509_fingerprint
+			allowedIn: []
+		-
+			function: openssl_x509_verify
+			allowedIn: []
+		-
+			function: openssl_x509_checkpurpose
+			allowedIn: []
+		-
+			function: openssl_x509_check_private_key
+			allowedIn: []
+		-
+			function: hash_hmac
+			allowedIn: []
 
 parametersSchema:
 	bannedNames: listOf(string())
-	bannedCalls: listOf(structure([
-		method: string()
-		allowedIn: listOf(string())
-	]))
+	bannedCalls: listOf(anyOf(
+		structure([method: string(), allowedIn: listOf(string())]),
+		structure([function: string(), allowedIn: listOf(string())])
+	))
 
 services:
 	-
