@@ -312,7 +312,7 @@ A `SignatureRefused` is input the namespace refuses; it extends `Core`'s `Refuse
 6. **The signature.** For each key of `$keys`, in order: `openssl_verify($canonicalSignedInfo, $signatureValue, $key, $algorithm->digest(), $padding)`, with `OPENSSL_PKCS1_PSS_PADDING` for a PSS method and the default otherwise; the first `1` wins; anything else on every key is `SignatureMismatch` (D-8). Nothing about which key came close is kept. The salt of a PSS signature is not constrained: `openssl_verify()` takes no salt length and OpenSSL recovers it from the signature, so a salt of any length verifies, the digest's length RFC 6931 names or another, which weakens nothing (measured, section 13).
 7. **The reference.** `$document->hasId($reference->id)` false is `WrongReference`; `$document->elementById($reference->id) !== $signed` is `WrongReference` (D-2). The identity comparison is the rule: the ID could name the claimed element's own wrapper, a sibling, or an element inside `Object`, and the index would find it just as well.
 8. **The digest.** `Canonicalizer::canonicalize($signed, CanonicalizationMethod::Exclusive, $reference->inclusiveNamespaces, excluding: [$signature])`, always without comments whatever the transform says: the node-set a same-document reference `#id` identifies omits comment nodes (XML Signature 1.1 §4.4.3.3), so a `#WithComments` transform renders none, and xmlsec1 digests the element that way (measured, section 13). The enveloped signature transform is done structurally by `Core` (I-14). `hash_equals($reference->digestValue, $reference->digestMethod->hash($canonical->bytes))` false is `DigestMismatch` (D-8).
-9. **The result.** `$this->loader->load($canonical->bytes)` gives the `Document` of `Verified` (D-10): the same loader, so the same ID attributes and the same limits, and the re-parse runs every rule of `Core` again on what was signed, duplicate IDs included.
+9. **The result.** `$this->loader->load($canonical->bytes)` gives the `Document` of `Verified` (D-10): the same loader, so the same ID attributes and the same limits, and the re-parse runs every rule of `Core` again on what was signed, duplicate IDs included. The canonical form can be longer than the element as it arrived, up to twice on empty elements with long names (measured, section 13): an element whose canonical form exceeds the `maxBytes` of `Core` is refused here (`LimitExceeded`, I-7), after its signature and its digest were verified. No producer of the interoperability targets comes near.
 
 Steps 3 and 4 refuse before any cryptography; step 6 runs before step 8 so that the digest of the element, the only step whose cost grows with the document, is computed for a trusted signer only (D-6). The signature is verified over the canonical form of `SignedInfo` as the signer produced it: a `SignedInfo` whose `DigestValue` was altered by an attacker who holds no key fails at step 6, not at step 8.
 
@@ -337,7 +337,7 @@ Steps 3 and 4 refuse before any cryptography; step 6 runs before step 8 so that 
 
 ## 7. Limits
 
-Constants of the namespace, never options: a consumer who needs more has a case this document does not know, and it changes here first.
+Constants of the namespace, never options: a consumer who needs more has a case this document does not know, and it changes here first. The bounds of `Core` apply as well, to the document and to the canonical form the verifier loads again (6.1 step 9).
 
 | Bound | Value | Why |
 |---|---|---|
@@ -534,3 +534,4 @@ The CI prints, next to the libxml version, whether `OPENSSL_PKCS1_PSS_PADDING` i
 
 - `openssl_pkey_get_public()` opens a string that starts with `file://` as a path and returns the key of the file, the first certificate of a bundle such as `/etc/ssl/cert.pem`. It reads the file until a `-----BEGIN` line, so `file:///dev/zero`, or a FIFO no one writes to, never returns, out of reach of `max_execution_time`. It also takes a PEM with text before the armour, and a bundle, of which it keeps the first certificate.
 - A PSS signature over the `SignedInfo` of the SHA-256 vector, made by the OpenSSL command line with a salt of 0, 20 or 222 bytes (`-sigopt rsa_pss_saltlen:`), verifies through `openssl_verify()` with `OPENSSL_PKCS1_PSS_PADDING` on PHP 8.5: `behaviour/pss-salt-zero-verifies.xml` pins the salt of no byte.
+- A document of 564 297 bytes holding 2 700 empty elements with names of 200 bytes canonicalizes to 1 121 950 bytes: signed, it verifies up to the reload of 6.1 step 9, which refuses it (`LimitExceeded`, I-7) under the default `maxBytes` of 1 048 576.
