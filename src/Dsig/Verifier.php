@@ -19,9 +19,6 @@ use Beffroi\Xml\Dsig\Internal\Names;
 use function constant;
 use Dom\Element;
 use function hash_equals;
-use const OPENSSL_ALGO_SHA256;
-use const OPENSSL_ALGO_SHA384;
-use const OPENSSL_ALGO_SHA512;
 use function openssl_verify;
 
 /**
@@ -56,7 +53,7 @@ final readonly class Verifier
         $signature = Signature::of($element);
         $algorithm = $signature->signedInfo->signatureMethod;
         if (! $algorithm->isAvailable()) {
-            throw new AlgorithmUnavailable('This build cannot verify RSASSA-PSS: OPENSSL_PKCS1_PSS_PADDING is undefined before PHP 8.5 (section 13).');
+            throw new AlgorithmUnavailable('This build cannot verify RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
         }
         $signedInfo = $this->canonicalizer->canonicalize(
             $signature->signedInfo->element,
@@ -95,11 +92,7 @@ final readonly class Verifier
         SignatureAlgorithm $algorithm,
         VerificationKeys $keys,
     ): VerificationKey {
-        $digest = match ($algorithm->digest()) {
-            DigestAlgorithm::Sha256 => OPENSSL_ALGO_SHA256,
-            DigestAlgorithm::Sha384 => OPENSSL_ALGO_SHA384,
-            DigestAlgorithm::Sha512 => OPENSSL_ALGO_SHA512,
-        };
+        $digest = $algorithm->digest()->opensslAlgorithm();
         // the padding parameter exists on PHP 8.5 only, and isAvailable() was checked: a PSS scheme passes it,
         // a PKCS#1 v1.5 scheme leaves the default in place, whatever the build
         $padding = $algorithm->isPss() ? [constant('OPENSSL_PKCS1_PSS_PADDING')] : [];

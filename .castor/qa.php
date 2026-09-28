@@ -7,6 +7,7 @@ declare(strict_types=1);
  * when Docker is available, directly when already inside a container (the CI) or without Docker.
  */
 
+use Castor\Attribute\AsArgument;
 use Castor\Attribute\AsOption;
 use Castor\Attribute\AsRawTokens;
 use Castor\Attribute\AsTask;
@@ -39,6 +40,8 @@ const INFECTION_STRICT_FILES = [
     'src/Dsig/Verified.php',
     'src/Dsig/VerificationKey.php',
     'src/Dsig/VerificationKeys.php',
+    'src/Dsig/Signer.php',
+    'src/Dsig/PrivateKey.php',
 ];
 
 /**
@@ -217,6 +220,82 @@ function deptrac(): void
         '--config-file=.ci-tools/deptrac.yaml',
         '--cache-file=tmp-phpqa/.deptrac.cache',
         '--no-progress',
+    ]);
+}
+
+#[AsTask(
+    description: 'Verify a signed XML file with xmlsec1, the implementation that is not this one (spec/dsig.md section 9.1), in an Alpine container: castor xmlsec tests/Dsig/Fixture/vectors/response-assertion-rsa-sha256.xml',
+)]
+function xmlsec(
+    #[AsArgument(description: 'The signed file, relative to the working directory')]
+    string $file,
+    #[AsOption(description: 'The certificate whose key verifies, relative to the working directory')]
+    string $certificate = 'tests/Dsig/Fixture/keys/test-signing-certificate.pem',
+    #[AsOption(description: 'The Id of the ds:Signature to verify when the file holds several')]
+    string $node = '',
+    #[AsOption(description: 'An XPath naming the ds:Signature to verify, for one that carries no Id')]
+    string $xpath = '',
+): void {
+    run([
+        'docker',
+        'run',
+        '--rm',
+        '-i',
+        '-v',
+        getcwd() . ':/project:ro',
+        '-w',
+        '/project',
+        'alpine:3.22',
+        'sh',
+        '-c',
+        'apk add -q xmlsec >/dev/null 2>&1 && xmlsec1 --verify --lax-key-search --pubkey-cert-pem '
+            . escapeshellarg($certificate)
+            . ' --id-attr:ID urn:oasis:names:tc:SAML:2.0:assertion:Assertion'
+            . ' --id-attr:ID urn:oasis:names:tc:SAML:2.0:protocol:Response'
+            . ' --id-attr:ID urn:oasis:names:tc:SAML:2.0:metadata:EntityDescriptor'
+            . ' --id-attr:Id http://www.w3.org/2000/09/xmldsig#:Signature'
+            . ($node === '' ? '' : ' --node-id ' . escapeshellarg($node))
+            . ($xpath === '' ? '' : ' --node-xpath ' . escapeshellarg($xpath))
+            . ' '
+            . escapeshellarg($file),
+    ]);
+}
+
+#[AsTask(
+    description: 'Sign a response and its assertion with every scheme this build offers, then verify both signatures of each with xmlsec1 (spec/dsig.md section 9.3 row 10): PHP_VERSION=8.5 castor xmlsec-oracle',
+)]
+function xmlsec_oracle(): void
+{
+    $directory = '.ci-tools/oracle';
+    foreach (glob($directory . '/*.xml') ?: [] as $file) {
+        unlink($file);
+    }
+    phpqa(
+        [
+            'composer',
+            'exec',
+            '--',
+            'phpunit',
+            '--configuration',
+            '.ci-tools/phpunit.xml.dist',
+            '--filter',
+            'SignerOracleTest',
+        ],
+        ['XMLSEC_ORACLE' => $directory],
+    );
+    run([
+        'docker',
+        'run',
+        '--rm',
+        '-i',
+        '-v',
+        getcwd() . ':/project:ro',
+        '-w',
+        '/project',
+        'alpine:3.22',
+        'sh',
+        '-c',
+        'apk add -q xmlsec >/dev/null 2>&1 && sh tests/Dsig/Fixture/oracle/verify-every-scheme.sh ' . $directory,
     ]);
 }
 

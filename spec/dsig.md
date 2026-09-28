@@ -7,7 +7,7 @@ The `Dsig` namespace of `xml-security`, XML Signature on the safe DOM of `Core`:
 | Repository | `beffroi-php/xml-security`, one package for the safe DOM, XML Signature and XML Encryption, in three namespaces |
 | Package | `beffroi-php/xml-security` |
 | Namespace | `Beffroi\Xml\Dsig`, on `Beffroi\Xml\Core`; this document is the law of `Dsig` alone, [core.md](core.md) the law of `Core` |
-| Runtime | PHP 8.4 or later, `ext-openssl` and what `Core` requires. RSASSA-PSS needs PHP 8.5 (section 13). Nothing else is called from `Dsig`. |
+| Runtime | PHP 8.4 or later, `ext-openssl` and what `Core` requires. RSASSA-PSS needs PHP 8.5 and OpenSSL 3.1 (section 13). Nothing else is called from `Dsig`. |
 | Consumers | `saml2-model`; outside the stack, any XML Signature profile whose signature is enveloped and referenced by ID (XAdES, WS-Security) |
 | Design | Sub-spike 8a of [spike 8](https://github.com/Spomky-Labs/heidi-design/blob/main/spikes/08-saml/README.md), [decision 0013](https://github.com/Spomky-Labs/heidi-design/blob/main/docs/decisions/0013-saml-formats-xml-ecrits-ici.md) (the invariants of `xml-dsig`) and [decision 0014](https://github.com/Spomky-Labs/heidi-design/blob/main/docs/decisions/0014-xml-security-un-seul-paquet.md) (one package) of the identity provider's design repository |
 
@@ -57,6 +57,7 @@ Each row is an incident, the rule that answers it, and where the rule lives. The
 | Silent primitive | `openssl_verify()` returns `-1` or `false`, a digest compared with `==` | `openssl_verify()` is compared to `1`; digests with `hash_equals()`; base64 decoded strictly | D-8, `Verifier` |
 | Denial of service | Inclusive canonicalization of a large element with many namespaces, an unbounded number of keys or references | Exclusive canonicalization only; the cheap `SignedInfo` signature is verified before the reference digest is computed, so only a holder of a trusted key makes the verifier canonicalize the element; bounds of section 7 | D-4, D-6, D-14 |
 | Weak keys | RSA below 2048 bits | A verification or signing key below 2048 bits is refused | D-16, `VerificationKey`, `PrivateKey` |
+| A private key sent to the peer | A key, or a bundle holding a key, passed where the certificate of `KeyInfo` is expected | The certificate hint is exactly one PEM certificate, re-encoded from its strict base64 | D-17, `Signer` |
 | Signing what the peer will not see | A built tree whose canonical form differs from its serialized form (measured, [core.md](core.md) section 13) | The signer hashes the loaded form of what was built | D-12, `Signer` |
 
 ## 4. Invariants
@@ -79,6 +80,7 @@ Each invariant is code, never a constructor option or a flag, has at least one t
 - **D-14. Bounded.** The number of verification keys, the decoded length of `SignatureValue`, the length of `DigestValue` (exactly the digest's), the length of any base64 text read, and the prefixes of a `PrefixList` are bounded by the constants of section 7. Denial of service.
 - **D-15. Four OpenSSL calls, one file each.** `openssl_verify()` is called once, in `Verifier`; `openssl_sign()` once, in `PrivateKey`; `openssl_pkey_get_public()` once, in `VerificationKey`; `openssl_pkey_get_private()` once, in `PrivateKey`. The rules of section 8 enforce it, and no other `openssl_*` function is called in the namespace.
 - **D-16. RSA of at least 2048 bits.** A verification key or a private key that is not RSA, or whose modulus is shorter than 2048 bits, is refused when the key object is built. A verification key is read from exactly one PEM block in memory, of the type its factory names (`CERTIFICATE` or `PUBLIC KEY`), whose content is strict base64 with nothing around it but whitespace, or from the base64 of a certificate: a path OpenSSL would open (`file://`), text around the block, a bundle or a chain is refused before OpenSSL reads anything. Weak keys, and a key read from anywhere but the string the consumer gave.
+- **D-17. The certificate hint is a certificate.** The `$certificatePem` a consumer gives `Signer::sign()` is exactly one PEM block of type `CERTIFICATE`, whose content is strict base64, with nothing around it but whitespace; a private key, a bundle holding a key and a certificate, a chain, or any other text is refused with `InvalidKey` before anything is serialized, and `X509Certificate` carries the base64 of the decoded certificate. The parameter is a `SensitiveParameter`, so that a key passed by mistake stays out of the traces. A private key sent to the peer.
 
 ## 5. Public API
 
@@ -102,7 +104,7 @@ enum SignatureAlgorithm: string
     public static function fromUri(string $uri): self;
     public function digest(): DigestAlgorithm;    // the hash of the scheme
     public function isPss(): bool;
-    public function isAvailable(): bool;          // false for a PSS case on a build without OPENSSL_PKCS1_PSS_PADDING
+    public function isAvailable(): bool;          // false for a PSS case unless the build has PHP 8.5 and OpenSSL 3.1
 }
 
 enum DigestAlgorithm: string
@@ -115,10 +117,11 @@ enum DigestAlgorithm: string
     public static function fromUri(string $uri): self;
     public function hash(string $bytes): string;   // the raw digest, hash('sha256', $bytes, true) and its siblings
     public function length(): int;                 // 32, 48 or 64 bytes
+    public function opensslAlgorithm(): int;       // OPENSSL_ALGO_SHA256 and its siblings, what openssl_sign() and openssl_verify() take
 }
 ```
 
-The signature algorithms are the RSA schemes of XML Signature 1.1 §6.4.2 (`rsa-sha256` is required of every implementation) and RFC 6931 §2.3 (the SHA-384 and SHA-512 forms, and RSASSA-PSS with MGF1 and a salt of the digest's length). The digest algorithms are those of XML Signature 1.1 §6.2 and RFC 6931 §2.1. Both lists are closed enumerations because the protocol fixes them and because a case added is a decision of this document, never a mapping in a consumer.
+The signature algorithms are the RSA schemes of XML Signature 1.1 §6.4.2 (`rsa-sha256` is required of every implementation) and RFC 6931 §2.3 (the SHA-384 and SHA-512 forms, and RSASSA-PSS with MGF1 and a salt of the digest's length). PHP passes no salt length to OpenSSL, whose default is the digest's length from 3.1 on: RSASSA-PSS is available on a build with PHP 8.5 and OpenSSL 3.1, and refused by name on any other (section 13). The digest algorithms are those of XML Signature 1.1 §6.2 and RFC 6931 §2.1. Both lists are closed enumerations because the protocol fixes them and because a case added is a decision of this document, never a mapping in a consumer.
 
 ### 5.2 Keys
 
@@ -147,7 +150,7 @@ interface SigningKeyInterface
     /**
      * The signature of $bytes under $algorithm, raw.
      *
-     * @throws AlgorithmUnavailable when this build cannot produce it (RSASSA-PSS before PHP 8.5)
+     * @throws AlgorithmUnavailable when this build cannot produce it (RSASSA-PSS without PHP 8.5 and OpenSSL 3.1)
      * @throws SigningFailed when the primitive fails
      */
     public function sign(string $bytes, SignatureAlgorithm $algorithm): string;
@@ -162,7 +165,7 @@ final readonly class PrivateKey implements SigningKeyInterface
 
 A `VerificationKey` holds an `OpenSSLAsymmetricKey` and nothing else; it exposes neither the PEM nor the modulus. The consumer builds it from what the peer's metadata carries, the base64 of an `X509Certificate` element in the common case: `openssl_pkey_get_public()` reads the certificate once it is wrapped in the PEM armour, and refuses the bare base64 (measured, section 13), so no DER parser is needed. Whether the certificate is expired, revoked or trusted is the business of the metadata layer, which decided to pass the key.
 
-`SigningKeyInterface` is the one port of the namespace: a key management service signs without ever handing its key over. `PrivateKey` is the implementation on a PEM in memory, for the tests and for a consumer whose key is a file the deployment gives it.
+`SigningKeyInterface` is the one port of the namespace: a key management service signs without ever handing its key over. `PrivateKey` is the implementation on a PEM in memory, for the tests and for a consumer whose key is a file the deployment gives it. It reads that PEM and nothing else: a string that starts with `file://`, which `openssl_pkey_get_private()` opens as a path, is refused, and a `null` passphrase is passed as the empty one, since OpenSSL asks the terminal for the passphrase of an encrypted PEM given none (measured, section 13).
 
 ### 5.3 The reading model
 
@@ -254,11 +257,13 @@ final readonly class Signer
      * The document, loaded again, with a ds:Signature over the element of ID $id inserted as its child, after the
      * child named $after or as its first child.
      *
-     * @param ?string $certificatePem when given, a KeyInfo/X509Data/X509Certificate carrying it, for peers that want the hint
+     * @param ?string $certificatePem when given, one PEM certificate (D-17), carried by a KeyInfo/X509Data/X509Certificate for peers that want the hint
      * @throws UnknownId when the loaded document holds no element of that ID
-     * @throws AlgorithmUnavailable, SigningFailed, InvalidKey
+     * @throws InvalidKey when $certificatePem is not exactly one certificate (D-17)
+     * @throws AlgorithmUnavailable, SigningFailed
      * @throws RefusedXml what Core's serializer and loader refuse of the document (core.md 6.5, 6.1)
      * @throws MissingChild, AmbiguousChild when $after names no child or several
+     * @throws \InvalidArgumentException when $method is not exclusive (D-4), or the element already holds a ds:Signature (D-1)
      */
     public function sign(
         Document $document,
@@ -266,7 +271,7 @@ final readonly class Signer
         SigningKeyInterface $key,
         SignatureAlgorithm $algorithm = SignatureAlgorithm::RsaSha256,
         ?Name $after = null,
-        ?string $certificatePem = null,
+        #[\SensitiveParameter] ?string $certificatePem = null,
         CanonicalizationMethod $method = CanonicalizationMethod::Exclusive,
         DigestAlgorithm $digest = DigestAlgorithm::Sha256,
     ): Document;
@@ -287,11 +292,11 @@ abstract class SignatureRefused extends RefusedXml {}
 final class MalformedSignature extends SignatureRefused {}        // D-1, D-2, D-3, D-4, D-9: the structure is not the one of 5.3
 final class UnknownSignatureAlgorithm extends SignatureRefused {} // D-5
 final class UnknownDigestAlgorithm extends SignatureRefused {}    // D-5
-final class AlgorithmUnavailable extends SignatureRefused {}      // a PSS case on a build without OPENSSL_PKCS1_PSS_PADDING
+final class AlgorithmUnavailable extends SignatureRefused {}      // a PSS case on a build without PHP 8.5 and OpenSSL 3.1
 final class WrongReference extends SignatureRefused {}            // D-2: the reference does not name the claimed element
 final class SignatureMismatch extends SignatureRefused {}         // no trusted key verifies SignedInfo
 final class DigestMismatch extends SignatureRefused {}            // the element is not what was signed
-final class InvalidKey extends SignatureRefused {}                // D-16, or no key in the PEM
+final class InvalidKey extends SignatureRefused {}                // D-16, or no key in the PEM; D-17, a certificate hint that is not one certificate
 final class LimitExceeded extends SignatureRefused {}             // D-14, the bound named
 final class SigningFailed extends \RuntimeException {}            // the primitive failed while signing: never input
 ```
@@ -307,7 +312,7 @@ A `SignatureRefused` is input the namespace refuses; it extends `Core`'s `Refuse
 1. **Ownership.** `Document::owning($signed)` (`ForeignNode` otherwise): the document is one `Core` loaded, so every ID is unique in it and every declaration is an attribute.
 2. **The Signature.** `Children::one($signed, {http://www.w3.org/2000/09/xmldsig#}Signature)`: a direct child, one, or a refusal (D-1, through `Core`'s `MissingChild` and `AmbiguousChild`, which are `RefusedXml`).
 3. **The reading model.** `Signature::of()` reads the structure of 5.3 with `Children::one()`, `Children::optional()`, `Attributes::required()` and `Text::of()`, in this order and refusing at the first fault: the element children of `Signature` are `SignedInfo`, `SignatureValue` and optionally `KeyInfo`, nothing else (D-9); `SignedInfo` has exactly `CanonicalizationMethod`, `SignatureMethod` and one `Reference`; the `Algorithm` of `CanonicalizationMethod` goes through `CanonicalizationMethod::fromUri()` of `Core` and must be exclusive (D-4), its optional `InclusiveNamespaces` child gives a `PrefixList` bounded by section 7; the `Algorithm` of `SignatureMethod` goes through `SignatureAlgorithm::fromUri()` (D-5), and a `HMACOutputLength` child is a refusal; the `Reference` has no `Type`, a `URI` that starts with `#` and continues with an NCName (D-2), exactly `Transforms`, `DigestMethod` and `DigestValue`; `Transforms` has exactly two `Transform`, the first `http://www.w3.org/2000/09/xmldsig#enveloped-signature` with no child, the second an exclusive canonicalization with an optional `InclusiveNamespaces` (D-3); `DigestMethod` goes through `DigestAlgorithm::fromUri()`; `DigestValue` and `SignatureValue` are decoded (D-8) and their lengths checked (D-14). `KeyInfo`, when present, is not read: not its children, not its text.
-4. **Availability.** A PSS method on a build without `OPENSSL_PKCS1_PSS_PADDING` is `AlgorithmUnavailable`, before any key is touched.
+4. **Availability.** A PSS method on a build where `isAvailable()` is false, without PHP 8.5 and OpenSSL 3.1, is `AlgorithmUnavailable`, before any key is touched.
 5. **SignedInfo.** `Canonicalizer::canonicalize($signedInfo->element, $signedInfo->canonicalizationMethod, $signedInfo->inclusiveNamespaces)`: a few hundred bytes, whatever the document.
 6. **The signature.** For each key of `$keys`, in order: `openssl_verify($canonicalSignedInfo, $signatureValue, $key, $algorithm->digest(), $padding)`, with `OPENSSL_PKCS1_PSS_PADDING` for a PSS method and the default otherwise; the first `1` wins; anything else on every key is `SignatureMismatch` (D-8). Nothing about which key came close is kept. The salt of a PSS signature is not constrained: `openssl_verify()` takes no salt length and OpenSSL recovers it from the signature, so a salt of any length verifies, the digest's length RFC 6931 names or another, which weakens nothing (measured, section 13).
 7. **The reference.** `$document->hasId($reference->id)` false is `WrongReference`; `$document->elementById($reference->id) !== $signed` is `WrongReference` (D-2). The identity comparison is the rule: the ID could name the claimed element's own wrapper, a sibling, or an element inside `Object`, and the index would find it just as well.
@@ -320,13 +325,13 @@ Steps 3 and 4 refuse before any cryptography; step 6 runs before step 8 so that 
 
 `Signer::sign($document, $id, $key, $algorithm, $after, $certificatePem, $method, $digest)`:
 
-1. **Availability.** A PSS method on a build without the constant is `AlgorithmUnavailable`, before anything is serialized.
+1. **Availability and the certificate.** A PSS method on a build where `isAvailable()` is false is `AlgorithmUnavailable`, and a `$certificatePem` that is not exactly one PEM block of type `CERTIFICATE` with strict base64 content is `InvalidKey` (D-17), before anything is serialized.
 2. **The round trip.** `Serializer::serialize($document)` (which refuses what would not survive a parser, [core.md](core.md) 6.5), then `$this->loader->load($bytes)`: the loaded document is the one the peer will see (D-12).
-3. **The element.** `$loaded->elementById($id)` (`UnknownId` otherwise); `$after` names a child of it through `Children::one()`, or is `null`.
+3. **The element.** `$loaded->elementById($id)` (`UnknownId` otherwise); an element that already holds a `ds:Signature` child is refused (`InvalidArgumentException`, D-1), since a second one makes a document the verifier refuses and another verifier may read either; `$after` names a child of it through `Children::one()`, or is `null`.
 4. **The digest.** `Canonicalizer::canonicalize($element, CanonicalizationMethod::Exclusive, InclusiveNamespaces::none())`, always without comments (the node-set of a same-document reference omits them, 6.1 step 8), no exclusion, since the `Signature` does not exist yet; `$digest->hash()` of the bytes.
 5. **SignedInfo.** Built with `createElementNS()` and the prefix `ds` on every element (the rule of [core.md](core.md) 6.5 for a built tree): `CanonicalizationMethod` with the URI of `$method`, `SignatureMethod` with the URI of `$algorithm`, one `Reference` with `URI="#$id"`, `Transforms` with the enveloped transform then `$method`'s URI, `DigestMethod`, `DigestValue` as base64. No `InclusiveNamespaces` is written: the namespace forms of the peer are its own business, and an exclusive form without a list is what the interoperability targets emit.
 6. **The signature.** The `ds:Signature` element, holding `SignedInfo`, is inserted into `$element` before the sibling that follows `$after`, or as the first child; then `SignedInfo` is canonicalized where it stands, with `$method` and no prefix list, and `$key->sign($canonical->bytes, $algorithm)` gives the bytes of `SignatureValue`, written as base64 with line breaks every 76 characters, as the interoperability targets write it.
-7. **KeyInfo.** When `$certificatePem` is given, `KeyInfo/X509Data/X509Certificate` holds its base64, the PEM armour and whitespace removed.
+7. **KeyInfo.** When `$certificatePem` is given, `KeyInfo/X509Data/X509Certificate` holds the base64 of the certificate step 1 decoded, on one line.
 8. **The result.** The loaded, signed `Document`. The consumer serializes it; `Core`'s serializer refuses nothing of it, since every element the signer built carries a prefix and the loaded part round-trips by construction of step 2.
 
 `SignedInfo` is canonicalized after insertion, where it will be when the peer canonicalizes it: a built subtree whose elements all carry a prefix canonicalizes to the same bytes before and after a round trip (measured, [core.md](core.md) section 13), and the enveloped transform of step 4 is what the peer will apply, since the `Signature` is inside the element and excluded from its digest.
@@ -355,7 +360,7 @@ Constants of the namespace, never options: a consumer who needs more has a case 
 
 ## 9. Acceptance
 
-The namespace is accepted when every case below is a green test in CI on PHP 8.4 and 8.5, when Infection leaves no escaped mutant in `Verifier`, `Verified`, `Signer`, `Signature`, `SignedInfo`, `Reference`, `SignatureAlgorithm`, `DigestAlgorithm`, `VerificationKey`, `VerificationKeys` and `PrivateKey`, when the real documents of 9.4 verify, and when SimpleSAMLphp verifies what the signer produces and the verifier accepts what SimpleSAMLphp signs (the judge of sub-spike 8a, story by story on the epic). One mutant is ignored by configuration, the `throw` of `AlgorithmUnavailable`: the mutation job runs on PHP 8.5, where a PSS scheme is always available, and the refusal is reached on 8.4 only, where the padding a PSS scheme passes is what cannot be reached; the two builds cover the two branches, and the tests of 9.1 exercise both.
+The namespace is accepted when every case below is a green test in CI on PHP 8.4 and 8.5, when Infection leaves no escaped mutant in `Verifier`, `Verified`, `Signer`, `Signature`, `SignedInfo`, `Reference`, `SignatureAlgorithm`, `DigestAlgorithm`, `VerificationKey`, `VerificationKeys` and `PrivateKey`, when the real documents of 9.4 verify, and when SimpleSAMLphp verifies what the signer produces and the verifier accepts what SimpleSAMLphp signs (the judge of sub-spike 8a, story by story on the epic). One mutant is ignored by configuration, the `throw` of `AlgorithmUnavailable`: the mutation job runs on PHP 8.5, where a PSS scheme is always available, and the refusal is reached on 8.4 only, where the padding a PSS scheme passes is what cannot be reached; the two builds cover the two branches, and the tests of 9.1 exercise both. A second, the `throw` of `SigningFailed`: `openssl_sign()` fills its signature for every key the constructor accepted, and a primitive that fails is not something a test can provoke; the guard stays for the type and the promise of 6.2. A third, the line of `isAvailable()` that reads `OPENSSL_VERSION_NUMBER`: every build of the CI links OpenSSL 3.5, where the comparison holds whatever its operator, and a build before 3.1 is outside the CI.
 
 ### 9.1 Vectors
 
@@ -367,7 +372,7 @@ The valid signatures the verifier must accept come from an independent implement
 | The same, with comments inside the signed element | exclusive with comments, both in `SignedInfo` and in the transform | verifies; the comments are not in the canonical bytes, since the node-set of a same-document reference omits them (XML Signature 1.1 §4.4.3.3, 6.1 step 8) |
 | The same, with a `PrefixList` of `#default saml ds` on the transform | exclusive with a prefix list | verifies; the listed declarations are in the canonical bytes |
 | The same, signed with rsa-sha384 and sha384, then rsa-sha512 and sha512 | | verifies, `$algorithm` reports each |
-| The same, RSASSA-PSS with SHA-256, then SHA-384 and SHA-512 | `sha256-rsa-MGF1` and its siblings | verifies on PHP 8.5; `AlgorithmUnavailable` on 8.4 |
+| The same, RSASSA-PSS with SHA-256, then SHA-384 and SHA-512 | `sha256-rsa-MGF1` and its siblings | verifies on PHP 8.5 with OpenSSL 3.1 or later; `AlgorithmUnavailable` on 8.4 and before OpenSSL 3.1 |
 | An assertion signed inside a response, then the response signed | two enveloped signatures, nested | each verifies with its own claimed element; the response's canonical bytes hold the assertion's `Signature` |
 | The metadata of an entity, signature as the first child | | verifies |
 | The W3C interop vectors of 2002 (merlin-xmldsig-twenty-three, phaos) | rsa-sha1, dsa, hmac, XPath and XSLT transforms | each refused with its named rule: they are the refusal corpus of D-3 and D-5, not the acceptance suite |
@@ -435,14 +440,16 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | `sign()` with a certificate | `KeyInfo/X509Data/X509Certificate` holds the base64, without armour or whitespace |
 | `sign()` without a certificate | no `KeyInfo` |
 | `sign()` leaves the given document untouched | the given document serializes to the same bytes before and after |
-| `sign()` with each algorithm and digest, exclusive and exclusive with comments | xmlsec1 verifies each |
+| `sign()` with each algorithm and digest, exclusive and exclusive with comments | xmlsec1 verifies each, on every run of the CI: the job Oracle has `SignerOracleTest` sign a response and its assertion with every scheme PHP 8.5 offers, then xmlsec1 verifies both signatures of each document (`tests/Dsig/Fixture/oracle`) |
 | `sign()` on a document that would not round-trip | the refusal of `Core`'s serializer, before anything is signed |
 | `sign()` with a `SigningKeyInterface` that is not `PrivateKey` | the bytes it returns are the `SignatureValue`; a stub records what it was asked to sign, the canonical `SignedInfo` |
 | `SignatureAlgorithm::fromUri()` and `DigestAlgorithm::fromUri()` round-trip each case | the URI comes back |
 | `SignatureAlgorithm::digest()` | `Sha256` for `RsaSha256` and `RsaPssSha256`, and so on |
-| `isAvailable()` | `true` for the PKCS#1 v1.5 cases everywhere, `true` for PSS on 8.5, `false` on 8.4 |
+| `isAvailable()` | `true` for the PKCS#1 v1.5 cases everywhere, `true` for PSS on PHP 8.5 with OpenSSL 3.1 or later, `false` on 8.4 and before OpenSSL 3.1 |
 | `VerificationKey::fromCertificateBase64()` of Entra's certificate, with line breaks inside | builds |
 | A `SignatureRefused` message | ends with the invariant in parentheses, holds no `#`, no URI, no base64 |
+| `sign()` with a private key, a key and a certificate in either order, two certificates, text after the certificate, no content or content that is not base64, as `$certificatePem` | `InvalidKey` (D-17), before anything is serialized |
+| `sign()` on an element that already holds a `Signature` | `InvalidArgumentException` (D-1), nothing signed |
 
 ### 9.4 Real documents
 
@@ -477,13 +484,13 @@ src/Dsig/              SignatureAlgorithm, DigestAlgorithm, VerificationKey, Ver
 tests/Dsig/            Unit/ (one class per class of src/Dsig/, plus TraceabilityTest, AdversarialTest, RealDocumentsTest,
                        PerformanceTest), Support/ (the test keys, the xmlsec1 runner for the developer who regenerates the
                        vectors, the loaded fixtures), Fixture/ (vectors, hostile, behaviour, real, keys: 9.1 to 9.4 and the
-                       adversarial pass, each directory with a README carrying the commands)
+                       adversarial pass, oracle: the xmlsec1 check of 9.3, each directory with a README carrying the commands)
 .ci-tools/             phpstan.neon extended with the function rules of section 8; deptrac.yaml's Dsig layer, on Core only;
                        the strict Infection list of section 9 in .castor/qa.php
 composer.json          ext-openssl added to the requirements
 ```
 
-The CI prints, next to the libxml version, whether `OPENSSL_PKCS1_PSS_PADDING` is defined on the build, so that the PSS gap of PHP 8.4 is visible on every run rather than hidden.
+The job Oracle of the CI signs in the phpqa image of PHP 8.5 and verifies with xmlsec1 in Alpine 3.22, `castor xmlsec-oracle` does the same on the developer's machine: a PSS signature is random, so the oracle runs on every build rather than on a fixture pinned once. The CI prints, next to the libxml version, the OpenSSL version and whether `OPENSSL_PKCS1_PSS_PADDING` is defined on the build, so that the PSS gap of PHP 8.4 and of OpenSSL before 3.1 is visible on every run rather than hidden.
 
 ## 11. Out of scope
 
@@ -530,8 +537,10 @@ The CI prints, next to the libxml version, whether `OPENSSL_PKCS1_PSS_PADDING` i
 - xmlsec1 1.3.7 built on OpenSSL installs in Alpine 3.22 with `apk add xmlsec`: the independent implementation of 9.1. Its digest of a `#id` reference whose transforms are the enveloped signature then `exc-c14n#WithComments`, over an element holding a comment, is the digest of the element without the comment: the node-set of a same-document bare-name reference omits comment nodes (XML Signature 1.1 §4.4.3.3), and a verifier that rendered them would refuse every such signature.
 - Kept for `Enc`: `openssl_decrypt()` in `aes-256-gcm` accepts a tag truncated to 12 or 4 bytes and returns the plaintext, refuses a tampered tag, an empty tag and a tampered ciphertext; `openssl_private_decrypt()` with `OPENSSL_PKCS1_OAEP_PADDING` offers no choice of hash, and with `OPENSSL_PKCS1_PADDING` "decrypts" an OAEP blob without failing.
 
-**Measurements, 29 September 2026**, while answering the review of the verifier, in the phpqa image (PHP 8.5.10, OpenSSL 3.5.7) and on the development machine (PHP 8.4):
+**Measurements, 29 September 2026**, while answering the reviews of the verifier and the signer, in the phpqa image (PHP 8.5.10, OpenSSL 3.5.7) and on the development machine (PHP 8.4):
 
 - `openssl_pkey_get_public()` opens a string that starts with `file://` as a path and returns the key of the file, the first certificate of a bundle such as `/etc/ssl/cert.pem`. It reads the file until a `-----BEGIN` line, so `file:///dev/zero`, or a FIFO no one writes to, never returns, out of reach of `max_execution_time`. It also takes a PEM with text before the armour, and a bundle, of which it keeps the first certificate.
 - A PSS signature over the `SignedInfo` of the SHA-256 vector, made by the OpenSSL command line with a salt of 0, 20 or 222 bytes (`-sigopt rsa_pss_saltlen:`), verifies through `openssl_verify()` with `OPENSSL_PKCS1_PSS_PADDING` on PHP 8.5: `behaviour/pss-salt-zero-verifies.xml` pins the salt of no byte.
 - A document of 564 297 bytes holding 2 700 empty elements with names of 200 bytes canonicalizes to 1 121 950 bytes: signed, it verifies up to the reload of 6.1 step 9, which refuses it (`LimitExceeded`, I-7) under the default `maxBytes` of 1 048 576.
+- `openssl_pkey_get_private()` opens a string that starts with `file://` as a path and returns the key the file holds. Given an encrypted PEM and a `null` passphrase, OpenSSL writes `Enter PEM pass phrase:` on the terminal and waits for what is typed there; without a terminal it fails at once. The empty passphrase fails at once on an encrypted PEM and loads an unencrypted one.
+- `openssl_sign()` on PHP 8.5 sets the PSS padding and no salt length, so the salt is OpenSSL's default: the digest's length from OpenSSL 3.1.0 (its CHANGES: "Change the default salt length for PKCS#1 RSASSA-PSS signatures to the maximum size that is smaller or equal to the digest length"), the largest the key allows before. In `php:8.5-cli-bookworm` (PHP 8.5.11, OpenSSL 3.0.20), the signer's PSS signatures are refused by xmlsec1 1.3.7 (`SIGNATURE`) and verified by `openssl pkeyutl` with `rsa_pss_saltlen:max` only; in the phpqa image both verify them with the digest's length. `openssl_verify()` recovers the salt length from the signature, so the verifier accepts either, which weakens nothing: the security of RSASSA-PSS does not rest on the length of its salt. `OPENSSL_VERSION_NUMBER`, the version PHP was built against, is `0x30500070` in the phpqa image.
