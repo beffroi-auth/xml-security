@@ -433,6 +433,26 @@ final class VerifierTest extends TestCase
         $this->verifier->verify($root, $this->trusted);
     }
 
+    /**
+     * Section 6.1 step 6: the salt of a PSS signature is not constrained, openssl_verify() recovering its length; a
+     * salt of no byte verifies, which RFC 6931 does not name and which weakens nothing.
+     */
+    #[Test]
+    public function itVerifiesAPssSignatureWhateverTheLengthOfItsSalt(): void
+    {
+        // Given
+        if (! SignatureAlgorithm::RsaPssSha256->isAvailable()) {
+            static::markTestSkipped('RSASSA-PSS is not available on this build.');
+        }
+        $document = Loaded::fixture('behaviour/pss-salt-zero-verifies.xml');
+
+        // When
+        $verified = $this->verifier->verify($document->elementById('_assertion-d4e5f6'), $this->trusted);
+
+        // Then
+        static::assertSame(SignatureAlgorithm::RsaPssSha256, $verified->algorithm);
+    }
+
     private function key(string $file): VerificationKey
     {
         return VerificationKey::fromCertificatePem(Fixtures::bytes('keys/' . $file));
