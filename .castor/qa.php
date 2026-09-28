@@ -34,6 +34,7 @@ const INFECTION_STRICT_FILES = [
     'src/Dsig/DigestAlgorithm.php',
     'src/Dsig/Internal/Base64.php',
     'src/Dsig/Internal/Structure.php',
+    'src/Dsig/Internal/Pem.php',
     'src/Dsig/Verifier.php',
     'src/Dsig/Verified.php',
     'src/Dsig/VerificationKey.php',
