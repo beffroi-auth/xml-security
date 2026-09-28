@@ -63,7 +63,8 @@ final readonly class Signer
      * @throws AmbiguousChild when $after names several
      * @throws RefusedXml what Core's serializer and loader refuse of the document (core.md 6.5, 6.1)
      * @throws Exception\SigningFailed when the primitive fails
-     * @throws InvalidArgumentException when $method is not exclusive (D-4)
+     * @throws InvalidArgumentException when $method is not exclusive (D-4), or the element already holds a ds:Signature
+     *                                   (D-1)
      */
     public function sign(
         Document $document,
@@ -85,6 +86,9 @@ final readonly class Signer
         $certificate = $certificatePem === null ? null : $this->certificate($certificatePem);
         $loaded = $this->loader->load($this->serializer->serialize($document));
         $element = $loaded->elementById($id);
+        if (Children::named($element, Names::dsig('Signature')) !== []) {
+            throw new InvalidArgumentException('The element already holds a ds:Signature, and a second one is what D-1 refuses (D-1).');
+        }
         $before = $after instanceof Name ? Children::one($element, $after)->nextSibling : $element->firstChild;
         // always without comments: the node-set of a same-document reference omits them (section 6.1 step 8)
         $digestValue = $digest->hash(
