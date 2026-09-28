@@ -7,6 +7,8 @@ namespace Beffroi\Xml\Dsig;
 use Beffroi\Xml\Core\Attributes;
 use Beffroi\Xml\Core\CanonicalizationMethod;
 use Beffroi\Xml\Core\Children;
+use Beffroi\Xml\Core\Document;
+use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Core\Exception\UnknownCanonicalizationMethod;
 use Beffroi\Xml\Core\InclusiveNamespaces;
 use Beffroi\Xml\Core\NcName;
@@ -47,9 +49,11 @@ final readonly class Reference
      * @throws MalformedSignature when the structure, a URI, a transform or a value is not what section 5.3 says
      * @throws Exception\UnknownDigestAlgorithm
      * @throws LimitExceeded
+     * @throws ForeignNode when $element is not of a document of the brick
      */
     public static function of(Element $element): self
     {
+        Document::owning($element);
         if (Attributes::optional($element, Names::attribute('Type')) !== null) {
             throw new MalformedSignature('A Reference carries no Type (D-2).');
         }

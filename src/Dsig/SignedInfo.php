@@ -6,6 +6,8 @@ namespace Beffroi\Xml\Dsig;
 
 use Beffroi\Xml\Core\Attributes;
 use Beffroi\Xml\Core\CanonicalizationMethod;
+use Beffroi\Xml\Core\Document;
+use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Core\InclusiveNamespaces;
 use Beffroi\Xml\Dsig\Exception\MalformedSignature;
 use Beffroi\Xml\Dsig\Internal\Names;
@@ -32,9 +34,11 @@ final readonly class SignedInfo
      * @throws Exception\UnknownSignatureAlgorithm
      * @throws Exception\UnknownDigestAlgorithm
      * @throws Exception\LimitExceeded
+     * @throws ForeignNode when $element is not of a document of the brick
      */
     public static function of(Element $element): self
     {
+        Document::owning($element);
         $canonicalizationMethod = Names::dsig('CanonicalizationMethod');
         $signatureMethod = Names::dsig('SignatureMethod');
         $reference = Names::dsig('Reference');
