@@ -53,7 +53,7 @@ final readonly class Verifier
         $signature = Signature::of($element);
         $algorithm = $signature->signedInfo->signatureMethod;
         if (! $algorithm->isAvailable()) {
-            throw new AlgorithmUnavailable('This build cannot verify RSASSA-PSS: OPENSSL_PKCS1_PSS_PADDING is undefined before PHP 8.5 (section 13).');
+            throw new AlgorithmUnavailable('This build cannot verify RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
         }
         $signedInfo = $this->canonicalizer->canonicalize(
             $signature->signedInfo->element,

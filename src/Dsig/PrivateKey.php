@@ -65,7 +65,7 @@ final readonly class PrivateKey implements SigningKeyInterface
     public function sign(string $bytes, SignatureAlgorithm $algorithm): string
     {
         if (! $algorithm->isAvailable()) {
-            throw new AlgorithmUnavailable('This build cannot produce RSASSA-PSS: OPENSSL_PKCS1_PSS_PADDING is undefined before PHP 8.5 (section 13).');
+            throw new AlgorithmUnavailable('This build cannot produce RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
         }
         // the padding parameter exists on PHP 8.5 only, and isAvailable() was checked (section 13)
         $padding = $algorithm->isPss() ? [constant('OPENSSL_PKCS1_PSS_PADDING')] : [];

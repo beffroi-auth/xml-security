@@ -57,7 +57,7 @@ final readonly class Signer
      *                                 for peers that want the hint
      *
      * @throws InvalidKey when $certificatePem is not exactly one certificate (D-17)
-     * @throws AlgorithmUnavailable a PSS scheme on a build without OPENSSL_PKCS1_PSS_PADDING
+     * @throws AlgorithmUnavailable a PSS scheme on a build without PHP 8.5 and OpenSSL 3.1
      * @throws UnknownId when the loaded document holds no element of that ID
      * @throws MissingChild when $after names no child of the element
      * @throws AmbiguousChild when $after names several
@@ -78,7 +78,7 @@ final readonly class Signer
         DigestAlgorithm $digest = DigestAlgorithm::Sha256,
     ): Document {
         if (! $algorithm->isAvailable()) {
-            throw new AlgorithmUnavailable('This build cannot produce RSASSA-PSS: OPENSSL_PKCS1_PSS_PADDING is undefined before PHP 8.5 (section 13).');
+            throw new AlgorithmUnavailable('This build cannot produce RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
         }
         if (! $method->isExclusive()) {
             throw new InvalidArgumentException('The canonicalization method is exclusive, with or without comments (D-4).');
@@ -135,7 +135,13 @@ final readonly class Signer
     {
         $message = 'The certificate is one PEM block of type CERTIFICATE and nothing else (D-17).';
         $matches = [];
-        if (preg_match('~\A\s*-----BEGIN CERTIFICATE-----([A-Za-z0-9+/=\s]+)-----END CERTIFICATE-----\s*\z~', $pem, $matches) !== 1) {
+        if (
+            preg_match(
+                '~\A\s*-----BEGIN CERTIFICATE-----([A-Za-z0-9+/=\s]+)-----END CERTIFICATE-----\s*\z~',
+                $pem,
+                $matches,
+            ) !== 1
+        ) {
             throw new InvalidKey($message);
         }
         $der = base64_decode(preg_replace('~\s+~', '', $matches[1]) ?? '', true);
