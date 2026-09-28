@@ -447,7 +447,7 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | `SignatureAlgorithm::digest()` | `Sha256` for `RsaSha256` and `RsaPssSha256`, and so on |
 | `isAvailable()` | `true` for the PKCS#1 v1.5 cases everywhere, `true` for PSS on PHP 8.5 with OpenSSL 3.1 or later, `false` on 8.4 and before OpenSSL 3.1 |
 | `VerificationKey::fromCertificateBase64()` of Entra's certificate, with line breaks inside | builds |
-| A `SignatureRefused` message | ends with the invariant in parentheses, holds no `#`, no URI, no base64 |
+| A `SignatureRefused` message | ends with the rule in parentheses, holds no URI, no ID and no base64 |
 | `sign()` with a private key, a key and a certificate in either order, two certificates, text after the certificate, no content or content that is not base64, as `$certificatePem` | `InvalidKey` (D-17), before anything is serialized |
 | `sign()` on an element that already holds a `Signature` | `InvalidArgumentException` (D-1), nothing signed |
 
