@@ -8,7 +8,6 @@ use Beffroi\Xml\Core\Exception\UnknownId;
 use Beffroi\Xml\Core\Exception\MissingChild;
 use Beffroi\Xml\Core\Exception\AmbiguousChild;
 use Beffroi\Xml\Core\Exception\RefusedXml;
-use function base64_decode;
 use function base64_encode;
 use Beffroi\Xml\Core\CanonicalizationMethod;
 use Beffroi\Xml\Core\Canonicalizer;
@@ -22,13 +21,12 @@ use Beffroi\Xml\Core\Serializer;
 use Beffroi\Xml\Dsig\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Dsig\Exception\InvalidKey;
 use Beffroi\Xml\Dsig\Internal\Names;
+use Beffroi\Xml\Dsig\Internal\Pem;
 use function chunk_split;
 use Dom\Element;
 use Dom\XMLDocument;
 use InvalidArgumentException;
 use SensitiveParameter;
-use function preg_match;
-use function preg_replace;
 use function rtrim;
 
 /**
@@ -133,23 +131,12 @@ final readonly class Signer
      */
     private function certificate(#[SensitiveParameter] string $pem): string
     {
-        $message = 'The certificate is one PEM block of type CERTIFICATE and nothing else (D-17).';
-        $matches = [];
-        if (
-            preg_match(
-                '~\A\s*-----BEGIN CERTIFICATE-----([A-Za-z0-9+/=\s]+)-----END CERTIFICATE-----\s*\z~',
+        return base64_encode(
+            Pem::block(
                 $pem,
-                $matches,
-            ) !== 1
-        ) {
-            throw new InvalidKey($message);
-        }
-        $der = base64_decode(preg_replace('~\s+~', '', $matches[1]) ?? '', true);
-        if ($der === false || $der === '') {
-            throw new InvalidKey($message);
-        }
-
-        return base64_encode($der);
+                'CERTIFICATE',
+            ) ?? throw new InvalidKey('The certificate is one PEM block of type CERTIFICATE and nothing else (D-17).'),
+        );
     }
 
     /**
