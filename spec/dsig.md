@@ -78,7 +78,7 @@ Each invariant is code, never a constructor option or a flag, has at least one t
 - **D-13. Refusals name the rule, never the input and never a key.** An exception says which invariant refused; it never carries the bytes, the ID, the URI, the algorithm string, a key or a certificate.
 - **D-14. Bounded.** The number of verification keys, the decoded length of `SignatureValue`, the length of `DigestValue` (exactly the digest's), the length of any base64 text read, and the prefixes of a `PrefixList` are bounded by the constants of section 7. Denial of service.
 - **D-15. Four OpenSSL calls, one file each.** `openssl_verify()` is called once, in `Verifier`; `openssl_sign()` once, in `PrivateKey`; `openssl_pkey_get_public()` once, in `VerificationKey`; `openssl_pkey_get_private()` once, in `PrivateKey`. The rules of section 8 enforce it, and no other `openssl_*` function is called in the namespace.
-- **D-16. RSA of at least 2048 bits.** A verification key or a private key that is not RSA, or whose modulus is shorter than 2048 bits, is refused when the key object is built. Weak keys.
+- **D-16. RSA of at least 2048 bits.** A verification key or a private key that is not RSA, or whose modulus is shorter than 2048 bits, is refused when the key object is built. A verification key is read from exactly one PEM block in memory, of the type its factory names (`CERTIFICATE` or `PUBLIC KEY`), whose content is strict base64 with nothing around it but whitespace, or from the base64 of a certificate: a path OpenSSL would open (`file://`), text around the block, a bundle or a chain is refused before OpenSSL reads anything. Weak keys, and a key read from anywhere but the string the consumer gave.
 
 ## 5. Public API
 
@@ -125,11 +125,11 @@ The signature algorithms are the RSA schemes of XML Signature 1.1 §6.4.2 (`rsa-
 ```php
 final readonly class VerificationKey
 {
-    /** @throws InvalidKey when the PEM holds no certificate, or a key that is not RSA of at least 2048 bits */
+    /** @throws InvalidKey unless $pem is exactly one PEM block of type CERTIFICATE (D-16), or when its key is not RSA of at least 2048 bits */
     public static function fromCertificatePem(string $pem): self;
     /** @throws InvalidKey the content of an X509Certificate element: base64 of the DER, whitespace tolerated */
     public static function fromCertificateBase64(string $base64): self;
-    /** @throws InvalidKey a PEM public key */
+    /** @throws InvalidKey unless $pem is exactly one PEM block of type PUBLIC KEY (D-16), or when its key is not RSA of at least 2048 bits */
     public static function fromPublicKeyPem(string $pem): self;
 }
 
@@ -420,6 +420,7 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | A sha256 signature verified as sha512 | `SignatureMismatch` |
 | The signed element whose canonical form would be empty | not reachable: an element always renders its start tag; the case of `Core` I-13 is tested there |
 | The claimed element from a document parsed outside the loader | `ForeignNode` |
+| A verification key given as a `file://` path, with text before the armour, as two certificates, or as a public key to `fromCertificatePem()` | `InvalidKey` (D-16), nothing handed to OpenSSL |
 
 ### 9.3 Behaviour corpus
 
@@ -528,3 +529,7 @@ The CI prints, next to the libxml version, whether `OPENSSL_PKCS1_PSS_PADDING` i
 - Entra's common federation metadata of 23 September 2026 carries one `Signature` with `CanonicalizationMethod` exclusive, `SignatureMethod` rsa-sha256, one `Reference` to the ID of the root (`_2cac9ed1-b223-4fb8-83bd-03d6f59d682d`), the enveloped transform then exclusive canonicalization, `DigestMethod` sha256, and a `KeyInfo/X509Data/X509Certificate`; eighteen more `KeyInfo` elements sit in its key descriptors.
 - xmlsec1 1.3.7 built on OpenSSL installs in Alpine 3.22 with `apk add xmlsec`: the independent implementation of 9.1. Its digest of a `#id` reference whose transforms are the enveloped signature then `exc-c14n#WithComments`, over an element holding a comment, is the digest of the element without the comment: the node-set of a same-document bare-name reference omits comment nodes (XML Signature 1.1 §4.4.3.3), and a verifier that rendered them would refuse every such signature.
 - Kept for `Enc`: `openssl_decrypt()` in `aes-256-gcm` accepts a tag truncated to 12 or 4 bytes and returns the plaintext, refuses a tampered tag, an empty tag and a tampered ciphertext; `openssl_private_decrypt()` with `OPENSSL_PKCS1_OAEP_PADDING` offers no choice of hash, and with `OPENSSL_PKCS1_PADDING` "decrypts" an OAEP blob without failing.
+
+**Measurements, 29 September 2026**, while answering the review of the verifier, in the phpqa image (PHP 8.5.10, OpenSSL 3.5.7) and on the development machine (PHP 8.4):
+
+- `openssl_pkey_get_public()` opens a string that starts with `file://` as a path and returns the key of the file, the first certificate of a bundle such as `/etc/ssl/cert.pem`. It reads the file until a `-----BEGIN` line, so `file:///dev/zero`, or a FIFO no one writes to, never returns, out of reach of `max_execution_time`. It also takes a PEM with text before the armour, and a bundle, of which it keeps the first certificate.
