@@ -339,6 +339,11 @@ final class SignatureTest extends TestCase
             MalformedSignature::class,
             'A DigestValue holds nothing but text (D-9).',
         ];
+        yield 'an Object inside InclusiveNamespaces' => [
+            'inclusive-namespaces-with-a-child-refused.xml',
+            MalformedSignature::class,
+            'An InclusiveNamespaces holds no child (D-9).',
+        ];
     }
 
     /**
