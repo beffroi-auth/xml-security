@@ -22,6 +22,7 @@
     <testsuites>
         <testsuite name="unit">
             <directory>../tests/Core/Unit</directory>
+            <directory>../tests/Dsig/Unit</directory>
         </testsuite>
     </testsuites>
     <php>
