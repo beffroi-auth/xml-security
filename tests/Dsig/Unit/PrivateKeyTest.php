@@ -73,20 +73,20 @@ final class PrivateKeyTest extends TestCase
     }
 
     /**
-     * §9.1, section 13: a PSS scheme on a build without OPENSSL_PKCS1_PSS_PADDING is refused by name.
+     * §9.1, section 13: a PSS scheme on a build without PHP 8.5 and OpenSSL 3.1 is refused by name.
      */
     #[Test]
     public function itRefusesPssWhereTheBuildCannotProduceIt(): void
     {
         // Given
         if (SignatureAlgorithm::RsaPssSha256->isAvailable()) {
-            static::markTestSkipped('RSASSA-PSS is available on this build; the refusal is the business of PHP 8.4.');
+            static::markTestSkipped('RSASSA-PSS is available on this build; the refusal is the business of PHP 8.4 and of OpenSSL before 3.1.');
         }
         $key = PrivateKey::fromPem(Fixtures::bytes('keys/test-signing-key.pem'));
 
         // Then
         $this->expectException(AlgorithmUnavailable::class);
-        $this->expectExceptionMessageIs('This build cannot produce RSASSA-PSS: OPENSSL_PKCS1_PSS_PADDING is undefined before PHP 8.5 (section 13).');
+        $this->expectExceptionMessageIs('This build cannot produce RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
 
         // When
         $key->sign('canonical SignedInfo', SignatureAlgorithm::RsaPssSha256);

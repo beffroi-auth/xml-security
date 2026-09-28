@@ -190,7 +190,7 @@ final class VerifierTest extends TestCase
     }
 
     /**
-     * §9.1, section 13: a PSS vector on a build without OPENSSL_PKCS1_PSS_PADDING is refused by name, before any
+     * §9.1, section 13: a PSS vector on a build without PHP 8.5 and OpenSSL 3.1 is refused by name, before any
      * key is touched.
      */
     #[Test]
@@ -198,14 +198,14 @@ final class VerifierTest extends TestCase
     {
         // Given
         if (SignatureAlgorithm::RsaPssSha256->isAvailable()) {
-            static::markTestSkipped('RSASSA-PSS is available on this build; the refusal is the business of PHP 8.4.');
+            static::markTestSkipped('RSASSA-PSS is available on this build; the refusal is the business of PHP 8.4 and of OpenSSL before 3.1.');
         }
         $document = Loaded::fixture('vectors/response-assertion-rsa-pss-sha256.xml');
         $signed = $document->elementById('_assertion-d4e5f6');
 
         // Then
         $this->expectException(AlgorithmUnavailable::class);
-        $this->expectExceptionMessageIs('This build cannot verify RSASSA-PSS: OPENSSL_PKCS1_PSS_PADDING is undefined before PHP 8.5 (section 13).');
+        $this->expectExceptionMessageIs('This build cannot verify RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
 
         // When
         $this->verifier->verify($signed, $this->trusted);

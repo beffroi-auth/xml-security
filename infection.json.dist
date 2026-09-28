@@ -11,6 +11,9 @@
     },
     "mutators": {
         "@default": true,
+        "global-ignoreSourceCodeByRegex": [
+            ".*OPENSSL_VERSION_NUMBER.*"
+        ],
         "Throw_": {
             "ignoreSourceCodeByRegex": [
                 "throw new SerializationFailed\\('libxml could not serialize the document \\(I-15\\)\\.'\\);",

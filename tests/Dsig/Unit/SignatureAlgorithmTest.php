@@ -138,14 +138,17 @@ final class SignatureAlgorithmTest extends TestCase
 
     /**
      * §9.3 row 15, section 13: the PSS schemes are available where OPENSSL_PKCS1_PSS_PADDING is defined, PHP 8.5,
-     * and not on 8.4.
+     * on OpenSSL 3.1 or later, whose default salt is the digest's length, and nowhere else.
      */
     #[Test]
-    public function itsPssSchemesAreAvailableWhereTheBuildDefinesThePadding(): void
+    public function itsPssSchemesAreAvailableWhereTheBuildDefinesThePaddingOnOpenSsl31(): void
     {
+        // Given
+        $available = defined('OPENSSL_PKCS1_PSS_PADDING') && OPENSSL_VERSION_NUMBER >= 0x3010_0000;
+
         // When / Then
-        static::assertSame(defined('OPENSSL_PKCS1_PSS_PADDING'), SignatureAlgorithm::RsaPssSha256->isAvailable());
-        static::assertSame(defined('OPENSSL_PKCS1_PSS_PADDING'), SignatureAlgorithm::RsaPssSha384->isAvailable());
-        static::assertSame(defined('OPENSSL_PKCS1_PSS_PADDING'), SignatureAlgorithm::RsaPssSha512->isAvailable());
+        static::assertSame($available, SignatureAlgorithm::RsaPssSha256->isAvailable());
+        static::assertSame($available, SignatureAlgorithm::RsaPssSha384->isAvailable());
+        static::assertSame($available, SignatureAlgorithm::RsaPssSha512->isAvailable());
     }
 }

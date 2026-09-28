@@ -53,11 +53,15 @@ enum SignatureAlgorithm: string
     }
 
     /**
-     * False for a PSS scheme on a build without OPENSSL_PKCS1_PSS_PADDING, which PHP 8.5 defines and 8.4 does not
-     * (specification, section 13).
+     * False for a PSS scheme unless the build has PHP 8.5, which defines OPENSSL_PKCS1_PSS_PADDING, and OpenSSL 3.1,
+     * whose default salt is the digest's length: PHP passes no salt length (specification, section 13).
      */
     public function isAvailable(): bool
     {
-        return ! $this->isPss() || defined('OPENSSL_PKCS1_PSS_PADDING');
+        if (! $this->isPss()) {
+            return true;
+        }
+
+        return defined('OPENSSL_PKCS1_PSS_PADDING') && OPENSSL_VERSION_NUMBER >= 0x3010_0000;
     }
 }

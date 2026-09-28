@@ -16,7 +16,7 @@ interface SigningKeyInterface
     /**
      * The signature of $bytes under $algorithm, raw.
      *
-     * @throws AlgorithmUnavailable when this build cannot produce it (RSASSA-PSS before PHP 8.5)
+     * @throws AlgorithmUnavailable when this build cannot produce it (RSASSA-PSS without PHP 8.5 and OpenSSL 3.1)
      * @throws SigningFailed when the primitive fails
      */
     public function sign(string $bytes, SignatureAlgorithm $algorithm): string;
