@@ -15,6 +15,7 @@ use function openssl_pkey_get_private;
 use function openssl_sign;
 use OpenSSLAsymmetricKey;
 use SensitiveParameter;
+use function str_starts_with;
 
 /**
  * A signing key on a PEM in memory, for the tests and for a consumer whose key is a file the deployment gives it
@@ -38,7 +39,12 @@ final readonly class PrivateKey implements SigningKeyInterface
         #[SensitiveParameter]
         ?string $passphrase = null,
     ): self {
-        $handle = openssl_pkey_get_private($pem, $passphrase);
+        // OpenSSL opens a string that starts with file:// as a path, and asks the terminal for the passphrase of an
+        // encrypted PEM given none: the key is the PEM in memory, and a missing passphrase is the empty one
+        if (str_starts_with($pem, 'file://')) {
+            throw new InvalidKey('The PEM holds no private key, or the passphrase is wrong (D-16).');
+        }
+        $handle = openssl_pkey_get_private($pem, $passphrase ?? '');
         // openssl leaves its diagnostics in a queue whatever the outcome; nothing of the stack reads them (D-13)
 
         if ($handle === false) {

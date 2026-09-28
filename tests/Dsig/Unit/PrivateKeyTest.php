@@ -129,6 +129,23 @@ final class PrivateKeyTest extends TestCase
     }
 
     /**
+     * Section 5.2: a path is not a PEM, even one OpenSSL would open and read the key from.
+     */
+    #[Test]
+    public function itRefusesAPathToAKeyFile(): void
+    {
+        // Given
+        $path = 'file://' . Fixtures::path('keys/test-signing-key.pem');
+
+        // Then
+        $this->expectException(InvalidKey::class);
+        $this->expectExceptionMessageIs('The PEM holds no private key, or the passphrase is wrong (D-16).');
+
+        // When
+        PrivateKey::fromPem($path);
+    }
+
+    /**
      * §9.2 row 36, D-16: a private key of 1024 bits, then a DSA key, then an EC key.
      */
     #[Test]
