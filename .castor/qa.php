@@ -303,12 +303,12 @@ function xmlsec_decrypt(
 }
 
 #[AsTask(
-    description: 'Sign a response and its assertion with every scheme this build offers, then verify both signatures of each with xmlsec1 (spec/dsig.md section 9.3 row 10): PHP_VERSION=8.5 castor xmlsec-oracle',
+    description: 'Sign a response and its assertion with every scheme this build offers and encrypt the assertion under every one, then have xmlsec1 verify and decrypt each (spec/dsig.md and spec/enc.md, section 9.3 row 10): PHP_VERSION=8.5 castor xmlsec-oracle',
 )]
 function xmlsec_oracle(): void
 {
     $directory = '.ci-tools/oracle';
-    foreach (glob($directory . '/*.xml') ?: [] as $file) {
+    foreach ([...(glob($directory . '/*.xml') ?: []), ...(glob($directory . '/enc/*') ?: [])] as $file) {
         unlink($file);
     }
     phpqa(
@@ -320,7 +320,7 @@ function xmlsec_oracle(): void
             '--configuration',
             '.ci-tools/phpunit.xml.dist',
             '--filter',
-            'SignerOracleTest',
+            'SignerOracleTest|EncryptorOracleTest',
         ],
         ['XMLSEC_ORACLE' => $directory],
     );
@@ -336,7 +336,11 @@ function xmlsec_oracle(): void
         'alpine:3.22',
         'sh',
         '-c',
-        'apk add -q xmlsec >/dev/null 2>&1 && sh tests/Dsig/Fixture/oracle/verify-every-scheme.sh ' . $directory,
+        'apk add -q xmlsec libxml2-utils >/dev/null 2>&1 && sh tests/Dsig/Fixture/oracle/verify-every-scheme.sh '
+            . $directory
+            . ' && sh tests/Enc/Fixture/oracle/decrypt-every-scheme.sh '
+            . $directory
+            . '/enc',
     ]);
 }
 
