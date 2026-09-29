@@ -11,6 +11,7 @@ use const OPENSSL_KEYTYPE_RSA;
 use const OPENSSL_PKCS1_OAEP_PADDING;
 use function openssl_pkey_get_details;
 use function openssl_pkey_get_private;
+use function openssl_error_string;
 use function openssl_private_decrypt;
 use OpenSSLAsymmetricKey;
 use SensitiveParameter;
@@ -73,6 +74,11 @@ final readonly class PrivateDecryptionKey implements DecryptionKeyInterface
         $digest = $hash === OaepHash::Sha1 ? [] : [$hash->openssl()];
         $sessionKey = null;
         openssl_private_decrypt($wrapped, $sessionKey, $this->handle, OPENSSL_PKCS1_OAEP_PADDING, ...$digest);
+        // an OAEP decoding error left in OpenSSL's queue would tell whoever reads openssl_error_string() which step
+        // failed: the queue is emptied, one error per call, whatever the outcome (section 6.1 step 4, E-3)
+        do {
+            $error = openssl_error_string();
+        } while ($error !== false);
 
         // a blob that does not unwrap leaves $sessionKey null: the one answer, whatever OpenSSL knows of why (E-3)
         return is_string($sessionKey) ? $sessionKey : null;
