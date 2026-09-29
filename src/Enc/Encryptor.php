@@ -9,8 +9,11 @@ use Beffroi\Xml\Core\CanonicalizationMethod;
 use Beffroi\Xml\Core\Canonicalizer;
 use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\Exception\ForeignNode;
+use Beffroi\Xml\Core\Exception\RefusedXml;
+use Beffroi\Xml\Core\IdAttributes;
 use Beffroi\Xml\Core\InclusiveNamespaces;
 use Beffroi\Xml\Core\Internal\Registry;
+use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Enc\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Enc\Exception\EncryptionFailed;
 use Beffroi\Xml\Enc\Exception\InvalidKey;
@@ -51,6 +54,7 @@ final readonly class Encryptor
      *                                for peers that want the hint
      *
      * @throws InvalidKey when $certificatePem is not exactly one certificate (E-14)
+     * @throws RefusedXml what Core's loader refuses of the plaintext, which no peer would parse either (E-9)
      * @throws AlgorithmUnavailable a hash this build cannot wrap under
      * @throws InvalidArgumentException when $element is not connected to its document, or an element of its
      *                                  subtree without a prefix has no declaration in scope (core.md 6.3)
@@ -81,6 +85,8 @@ final readonly class Encryptor
             CanonicalizationMethod::ExclusiveWithComments,
             $this->prefixesInScope($element),
         )->bytes;
+        // what no parser accepts, a namespace name C14N() wrote raw among it, is refused here and not by the peer
+        new Loader(IdAttributes::none())->load($plaintext);
         $sessionKey = random_bytes($algorithm->keyBytes());
         $iv = random_bytes(ContentAlgorithm::IV_BYTES);
         $tag = '';

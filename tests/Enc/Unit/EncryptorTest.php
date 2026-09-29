@@ -11,6 +11,7 @@ use Beffroi\Xml\Core\Children;
 use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\DocumentFactory;
 use Beffroi\Xml\Core\Exception\ForeignNode;
+use Beffroi\Xml\Core\Exception\MalformedXml;
 use Beffroi\Xml\Core\InclusiveNamespaces;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Core\Name;
@@ -467,6 +468,27 @@ final class EncryptorTest extends TestCase
 
         // Then
         static::assertSame(self::XS, $this->attributeValue($decrypted->root())->lookupNamespaceURI('xs'));
+    }
+
+    /**
+     * §9.3 row 19, E-9: a namespace name holding an ampersand, which C14N() writes raw, gives a plaintext no parser
+     * accepts: Core refuses it before anything is encrypted.
+     */
+    #[Test]
+    public function itRefusesAPlaintextNoParserAccepts(): void
+    {
+        // Given
+        $document = Built::responseWithAssertion();
+        $assertion = Built::assertionOf($document);
+        $xml = $assertion->ownerDocument;
+        static::assertNotNull($xml);
+        $assertion->appendChild($xml->createElementNS('urn:vendor:ext?a=1&b=2', 'ext:Extra'));
+
+        // Then
+        $this->expectException(MalformedXml::class);
+
+        // When
+        $this->encryptor->encrypt($assertion, $this->peer);
     }
 
     /**
