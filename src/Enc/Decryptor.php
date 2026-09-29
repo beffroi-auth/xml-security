@@ -34,6 +34,9 @@ final readonly class Decryptor
     }
 
     /**
+     * The Document Core loaded from the plaintext. The consumer holds it for as long as it reads its nodes, never the
+     * root alone: a document no one holds is forgotten by Core's registry, and its nodes become foreign (section 5.4).
+     *
      * @param Element $encrypted the xenc:EncryptedData element, the child of a saml:EncryptedAssertion
      *
      * @throws Exception\EncryptionRefused one of its subclasses naming the rule (E-12), or the one failure (E-3)
