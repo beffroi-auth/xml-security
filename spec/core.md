@@ -118,8 +118,8 @@ final readonly class Loader
 {
     public function __construct(private IdAttributes $idAttributes, private Limits $limits = new Limits()) {}
 
-    /** @throws RefusedXml */
-    public function load(string $bytes): Document;
+    /** @throws RefusedXml; $bytes is a SensitiveParameter: a decrypted plaintext stays out of the traces of its refusal */
+    public function load(#[\SensitiveParameter] string $bytes): Document;
 }
 
 final class Document
