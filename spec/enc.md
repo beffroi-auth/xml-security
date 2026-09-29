@@ -422,7 +422,7 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | `encrypt()` with a certificate | the key's `KeyInfo/X509Data/X509Certificate` holds its base64, on one line; without, no `KeyInfo` under the key |
 | `encrypt()` of an element with comments and inherited declarations | the plaintext is the exclusive canonical form with comments, the declarations rendered on the element (E-9) |
 | A signed assertion (the signer of `Dsig`) encrypted, decrypted, verified by `Dsig` | the stack's round trip is green |
-| xmlsec1 decrypts what `encrypt()` produced | the command recorded in the fixture README, for `aes256-gcm` and `aes128-gcm` |
+| xmlsec1 decrypts what `encrypt()` produced | on every run of the CI: the job Oracle has `EncryptorOracleTest` encrypt the assertion of a response under each content method and each hash the build offers, then xmlsec1 decrypts each and the document it gives back is, in its exclusive canonical form, the document before encryption (`tests/Enc/Fixture/oracle`) |
 | `encrypt()` of a built element whose default namespace is undeclared | the `\InvalidArgumentException` of `Core`'s canonicalizer, before anything is encrypted |
 | `ContentAlgorithm::fromUri()` and `OaepHash::fromDigestUri()` round-trip each case | the URI comes back |
 | `KeyTransport::uri()` | `rsa-oaep-mgf1p` for SHA-1, `rsa-oaep` otherwise |
@@ -463,7 +463,7 @@ src/Enc/               ContentAlgorithm, OaepHash, KeyTransport, DecryptionKeyIn
                        structure helpers, as Dsig has them)
 tests/Enc/             Unit/ (one class per class of src/Enc/, plus TraceabilityTest, SourceGuardTest, AdversarialTest,
                        RealDocumentsTest, PerformanceTest, Regression/), Support/, Fixture/ (vectors, hostile, behaviour, real,
-                       each directory with a README carrying the commands)
+                       oracle: the xmlsec1 check of 9.3, each directory with a README carrying the commands)
 .ci-tools/             phpstan.neon extended with the confinements of section 8; deptrac.yaml's Enc layer, on Core only, never on
                        Dsig; the strict Infection list of section 9 in .castor/qa.php
 ```
