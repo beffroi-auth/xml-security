@@ -9,6 +9,7 @@ use Beffroi\Xml\Core\CanonicalizationMethod;
 use Beffroi\Xml\Core\Canonicalizer;
 use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\Exception\ForeignNode;
+use Beffroi\Xml\Core\InclusiveNamespaces;
 use Beffroi\Xml\Core\Internal\Registry;
 use Beffroi\Xml\Enc\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Enc\Exception\EncryptionFailed;
@@ -18,6 +19,7 @@ use Beffroi\Xml\Enc\Internal\Pem;
 use function chunk_split;
 use Dom\Element;
 use Dom\XMLDocument;
+use function implode;
 use InvalidArgumentException;
 use function openssl_encrypt;
 use const OPENSSL_RAW_DATA;
@@ -41,8 +43,9 @@ final readonly class Encryptor
 
     /**
      * A new xenc:EncryptedData element, built in the document of $element and returned unattached, holding the
-     * exclusive canonical form with comments of $element under a fresh session key and IV, the key under RSA-OAEP
-     * to $peer. The consumer puts it where its protocol says and removes the plaintext element itself.
+     * exclusive canonical form with comments of $element, every prefix in scope rendered (E-9), under a fresh session
+     * key and IV, the key under RSA-OAEP to $peer. The consumer puts it where its protocol says and removes the
+     * plaintext element itself.
      *
      * @param ?string $certificatePem when given, one PEM certificate (E-14), carried by the KeyInfo of the EncryptedKey
      *                                for peers that want the hint
@@ -76,6 +79,7 @@ final readonly class Encryptor
         $plaintext = $this->canonicalizer->canonicalize(
             $element,
             CanonicalizationMethod::ExclusiveWithComments,
+            $this->prefixesInScope($element),
         )->bytes;
         $sessionKey = random_bytes($algorithm->keyBytes());
         $iv = random_bytes(ContentAlgorithm::IV_BYTES);
@@ -137,6 +141,21 @@ final readonly class Encryptor
         $this->cipherData($xml, $data, $iv . $ciphertext . $tag);
 
         return $data;
+    }
+
+    /**
+     * Every prefix in scope on $element, #default for a default namespace, for the PrefixList of the exclusive
+     * canonical form: the declarations a QName value such as xsi:type="xs:string" needs are rendered too, which the
+     * exclusive form alone leaves out (E-9).
+     */
+    private function prefixesInScope(Element $element): InclusiveNamespaces
+    {
+        $prefixes = [];
+        foreach ($element->getInScopeNamespaces() as $namespace) {
+            $prefixes[] = $namespace->prefix ?? '#default';
+        }
+
+        return InclusiveNamespaces::fromPrefixList(implode(' ', $prefixes));
     }
 
     /**

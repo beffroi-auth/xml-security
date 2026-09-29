@@ -11,6 +11,7 @@ use Beffroi\Xml\Core\Children;
 use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\DocumentFactory;
 use Beffroi\Xml\Core\Exception\ForeignNode;
+use Beffroi\Xml\Core\InclusiveNamespaces;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Core\Serializer;
@@ -39,6 +40,7 @@ use Beffroi\Xml\Tests\Enc\Support\Fixtures;
 use Beffroi\Xml\Tests\Enc\Support\Loaded;
 use Dom\Element;
 use function explode;
+use function implode;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -57,6 +59,10 @@ use function substr;
 final class EncryptorTest extends TestCase
 {
     private const string XMLNS = 'http://www.w3.org/2000/xmlns/';
+
+    private const string XS = 'http://www.w3.org/2001/XMLSchema';
+
+    private const string XSI = 'http://www.w3.org/2001/XMLSchema-instance';
 
     private Encryptor $encryptor;
 
@@ -99,7 +105,7 @@ final class EncryptorTest extends TestCase
         static::assertSame(OaepHash::Sha1, $data->key->transport->hash);
         static::assertSame(256, strlen($data->key->cipherValue));
         static::assertSame(
-            strlen($expected) + ContentAlgorithm::IV_BYTES + ContentAlgorithm::TAG_BYTES,
+            strlen($this->plaintext($assertion)) + ContentAlgorithm::IV_BYTES + ContentAlgorithm::TAG_BYTES,
             strlen($data->cipherValue),
         );
         $decrypted = $this->decryptor->decrypt($encrypted, $this->key);
@@ -442,6 +448,28 @@ final class EncryptorTest extends TestCase
     }
 
     /**
+     * §9.3 row 18, E-9: a prefix a value names, declared on an ancestor, is declared in the plaintext, so that the
+     * element decrypted alone still resolves it.
+     */
+    #[Test]
+    public function itRendersThePrefixAQnameValueNames(): void
+    {
+        // Given
+        $document = Built::responseWithAssertion();
+        $root = $document->root();
+        $root->setAttributeNS(self::XMLNS, 'xmlns:xs', self::XS);
+        $root->setAttributeNS(self::XMLNS, 'xmlns:xsi', self::XSI);
+        $assertion = Built::assertionOf($document);
+        $this->attributeValue($assertion)->setAttributeNS(self::XSI, 'xsi:type', 'xs:string');
+
+        // When
+        $decrypted = $this->decryptor->decrypt($this->encryptor->encrypt($assertion, $this->peer), $this->key);
+
+        // Then
+        static::assertSame(self::XS, $this->attributeValue($decrypted->root())->lookupNamespaceURI('xs'));
+    }
+
+    /**
      * The exclusive canonical form with comments, the content a decryption gives back (E-9).
      */
     private function canonical(Element $element): string
@@ -449,6 +477,36 @@ final class EncryptorTest extends TestCase
         return $this->canonicalizer->canonicalize($element, CanonicalizationMethod::ExclusiveWithComments)->bytes;
     }
 
+    /**
+     * What the encryptor encrypts: the same form, every prefix in scope on its PrefixList (E-9).
+     */
+    private function plaintext(Element $element): string
+    {
+        $prefixes = [];
+        foreach ($element->getInScopeNamespaces() as $namespace) {
+            $prefixes[] = $namespace->prefix ?? '#default';
+        }
+
+        return $this->canonicalizer->canonicalize(
+            $element,
+            CanonicalizationMethod::ExclusiveWithComments,
+            InclusiveNamespaces::fromPrefixList(implode(' ', $prefixes)),
+        )->bytes;
+    }
+
+    /**
+     * The AttributeValue of the assertion of the built response.
+     */
+    private function attributeValue(Element $assertion): Element
+    {
+        return Children::one(
+            Children::one(
+                Children::one($assertion, new Name(Stack::SAML_ASSERTION, 'AttributeStatement')),
+                new Name(Stack::SAML_ASSERTION, 'Attribute'),
+            ),
+            new Name(Stack::SAML_ASSERTION, 'AttributeValue'),
+        );
+    }
 
     /**
      * The response with its assertion replaced by an EncryptedAssertion holding $encrypted, what the consumer does.
