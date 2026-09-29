@@ -154,6 +154,39 @@ final class StructureTest extends TestCase
         Structure::none($document->root(), 'a child (E-5).');
     }
 
+    /**
+     * E-5, Core I-12: the text of an element, read through Text::of(), a comment skipped.
+     */
+    #[Test]
+    public function itReadsTheTextOfAnElement(): void
+    {
+        // Given
+        $document = $this->document('te<!--comment-->xt');
+
+        // When
+        $text = Structure::text($document->root(), 'unused');
+
+        // Then
+        static::assertSame('text', $text);
+    }
+
+    /**
+     * E-5: an element inside a text is refused under the rule of the namespace, never with Core's MixedContent.
+     */
+    #[Test]
+    public function itRefusesAnElementInsideTheText(): void
+    {
+        // Given
+        $document = $this->document('te<t:b/>xt');
+
+        // Then
+        $this->expectException(MalformedEncryption::class);
+        $this->expectExceptionMessageIs('nothing but text (E-5).');
+
+        // When
+        Structure::text($document->root(), 'nothing but text (E-5).');
+    }
+
     private function document(string $children): Document
     {
         return Loaded::document('<t:a xmlns:t="' . self::NS . '">' . $children . '</t:a>');

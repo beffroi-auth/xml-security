@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Enc\Internal;
 
-use Beffroi\Xml\Core\Exception\MixedContent;
-use Beffroi\Xml\Core\Text;
 use Beffroi\Xml\Enc\Exception\LimitExceeded;
 use Beffroi\Xml\Enc\Exception\MalformedEncryption;
 use Dom\Element;
@@ -23,7 +21,6 @@ final readonly class CipherData
      *
      * @throws MalformedEncryption
      * @throws LimitExceeded
-     * @throws MixedContent when the CipherValue has an element child (Core I-12)
      */
     public static function valueOf(Element $cipherData): string
     {
@@ -34,8 +31,9 @@ final readonly class CipherData
             'A CipherData holds nothing but a CipherValue, never a CipherReference (E-5).',
         );
 
-        return Base64::decode(Text::of(
+        return Base64::decode(Structure::text(
             Structure::one($cipherData, $cipherValue, 'A CipherData holds exactly one CipherValue (E-5).'),
+            'A CipherValue holds nothing but text (E-5).',
         ));
     }
 }

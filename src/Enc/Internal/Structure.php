@@ -6,7 +6,9 @@ namespace Beffroi\Xml\Enc\Internal;
 
 use function array_any;
 use Beffroi\Xml\Core\Children;
+use Beffroi\Xml\Core\Exception\MixedContent;
 use Beffroi\Xml\Core\Name;
+use Beffroi\Xml\Core\Text;
 use Beffroi\Xml\Enc\Exception\MalformedEncryption;
 use function count;
 use Dom\Element;
@@ -73,6 +75,21 @@ final readonly class Structure
     public static function none(Element $element, string $message): void
     {
         if (Children::all($element) !== []) {
+            throw new MalformedEncryption($message);
+        }
+    }
+
+    /**
+     * The text of $element through Core's Text::of() (E-5), an element child refused under the rule of the namespace
+     * rather than Core's MixedContent: nothing was decrypted, so the refusal is the model's (section 5.3).
+     *
+     * @throws MalformedEncryption
+     */
+    public static function text(Element $element, string $message): string
+    {
+        try {
+            return Text::of($element);
+        } catch (MixedContent) {
             throw new MalformedEncryption($message);
         }
     }

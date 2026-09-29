@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Beffroi\Xml\Tests\Enc\Unit\Internal;
 
 use Beffroi\Xml\Core\Document;
-use Beffroi\Xml\Core\Exception\MixedContent;
 use Beffroi\Xml\Enc\Exception\MalformedEncryption;
 use Beffroi\Xml\Enc\Internal\CipherData;
 use Beffroi\Xml\Enc\Internal\Names;
@@ -87,7 +86,8 @@ final class CipherDataTest extends TestCase
     }
 
     /**
-     * Core I-12: a CipherValue with an element child is a text the brick does not read at all.
+     * §9.2 row 36, E-5: a CipherValue with an element child is refused by the model, never with Core's MixedContent,
+     * since nothing was decrypted.
      */
     #[Test]
     public function itRefusesACipherValueHoldingAnElement(): void
@@ -96,7 +96,8 @@ final class CipherDataTest extends TestCase
         $document = $this->cipherData('<xenc:CipherValue>AA<xenc:Foo/>EC</xenc:CipherValue>');
 
         // Then
-        $this->expectException(MixedContent::class);
+        $this->expectException(MalformedEncryption::class);
+        $this->expectExceptionMessageIs('A CipherValue holds nothing but text (E-5).');
 
         // When
         CipherData::valueOf($document->root());
