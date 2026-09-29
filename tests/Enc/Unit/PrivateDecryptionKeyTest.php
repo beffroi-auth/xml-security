@@ -155,6 +155,23 @@ final class PrivateDecryptionKeyTest extends TestCase
     }
 
     /**
+     * §9.2 row 38, E-11: a path is not a PEM, even one OpenSSL would open and read the key from.
+     */
+    #[Test]
+    public function itRefusesAPathToAKeyFile(): void
+    {
+        // Given
+        $path = 'file://' . Fixtures::path('keys/test-signing-key.pem');
+
+        // Then
+        $this->expectException(InvalidKey::class);
+        $this->expectExceptionMessageIs('The PEM holds no private key, or the passphrase is wrong (E-11).');
+
+        // When
+        PrivateDecryptionKey::fromPem($path);
+    }
+
+    /**
      * §9.2 row 31, E-11: a key under 2048 bits, or not RSA.
      */
     #[Test]
