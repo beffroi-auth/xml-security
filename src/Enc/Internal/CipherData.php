@@ -17,13 +17,18 @@ use Dom\Element;
 final readonly class CipherData
 {
     /**
-     * The decoded bytes of the one CipherValue.
+     * The decoded bytes of the one CipherValue, its text bounded by $maxTextBytes, the constant $bound names.
+     *
+     * @param positive-int $maxTextBytes
      *
      * @throws MalformedEncryption
      * @throws LimitExceeded
      */
-    public static function valueOf(Element $cipherData): string
-    {
+    public static function valueOf(
+        Element $cipherData,
+        int $maxTextBytes = Base64::MAX_TEXT_BYTES,
+        string $bound = 'maxCipherValueBytes',
+    ): string {
         $cipherValue = Names::xenc('CipherValue');
         Structure::refuseOtherChildren(
             $cipherData,
@@ -31,9 +36,13 @@ final readonly class CipherData
             'A CipherData holds nothing but a CipherValue, never a CipherReference (E-5).',
         );
 
-        return Base64::decode(Structure::text(
-            Structure::one($cipherData, $cipherValue, 'A CipherData holds exactly one CipherValue (E-5).'),
-            'A CipherValue holds nothing but text (E-5).',
-        ));
+        return Base64::decode(
+            Structure::text(
+                Structure::one($cipherData, $cipherValue, 'A CipherData holds exactly one CipherValue (E-5).'),
+                'A CipherValue holds nothing but text (E-5).',
+            ),
+            $maxTextBytes,
+            $bound,
+        );
     }
 }

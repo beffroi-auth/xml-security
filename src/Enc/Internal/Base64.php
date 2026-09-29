@@ -26,15 +26,22 @@ final readonly class Base64
     public const int MAX_TEXT_BYTES = 2_097_152;
 
     /**
-     * @throws LimitExceeded when the text is longer than MAX_TEXT_BYTES
+     * @param positive-int $maxTextBytes the bound of section 7 the text is held to, before anything is decoded
+     * @param string $bound the name section 7 gives it
+     *
+     * @throws LimitExceeded when the text is longer than $maxTextBytes
      * @throws MalformedEncryption when the text holds a character outside the alphabet or is empty
      */
-    public static function decode(string $text): string
-    {
-        if (strlen($text) > self::MAX_TEXT_BYTES) {
+    public static function decode(
+        string $text,
+        int $maxTextBytes = self::MAX_TEXT_BYTES,
+        string $bound = 'maxCipherValueBytes',
+    ): string {
+        if (strlen($text) > $maxTextBytes) {
             throw new LimitExceeded(sprintf(
-                'A CipherValue is longer than maxCipherValueBytes, %d bytes of text (E-13).',
-                self::MAX_TEXT_BYTES,
+                'A CipherValue is longer than %s, %d bytes of text (E-13).',
+                $bound,
+                $maxTextBytes,
             ));
         }
         $bytes = base64_decode(preg_replace('~[ \t\r\n]+~', '', $text) ?? '', true);

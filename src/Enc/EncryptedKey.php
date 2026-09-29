@@ -30,6 +30,11 @@ final readonly class EncryptedKey
 
     public const int MAX_CIPHER_BYTES = 1024;
 
+    /**
+     * Section 7: the text of the cipher value before decoding, far above the 1 368 characters of 1 024 bytes.
+     */
+    public const int MAX_TEXT_BYTES = 4096;
+
     public function __construct(
         public Element $element,
         public KeyTransport $transport,
@@ -65,6 +70,8 @@ final readonly class EncryptedKey
         );
         $value = CipherData::valueOf(
             Structure::one($element, $cipherData, 'An EncryptedKey holds exactly one CipherData (E-5).'),
+            self::MAX_TEXT_BYTES,
+            'maxEncryptedKeyTextBytes',
         );
         if (strlen($value) < self::MIN_CIPHER_BYTES || strlen($value) > self::MAX_CIPHER_BYTES) {
             throw new LimitExceeded(sprintf(
