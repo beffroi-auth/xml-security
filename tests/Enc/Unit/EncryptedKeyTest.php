@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Tests\Enc\Unit;
 
+use Beffroi\Xml\Core\Children;
+use Beffroi\Xml\Core\Exception\ForeignNode;
+use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Enc\EncryptedKey;
 use Beffroi\Xml\Enc\Exception\LimitExceeded;
 use Beffroi\Xml\Enc\Exception\MalformedEncryption;
 use Beffroi\Xml\Enc\Exception\UnknownKeyTransport;
+use Beffroi\Xml\Enc\Internal\Names;
 use Beffroi\Xml\Enc\KeyTransport;
 use Beffroi\Xml\Enc\OaepHash;
+use Beffroi\Xml\Tests\Core\Support\Foreign;
 use Beffroi\Xml\Tests\Enc\Support\Encrypted;
 use Beffroi\Xml\Tests\Enc\Support\Fixtures;
 use Beffroi\Xml\Tests\Enc\Support\Loaded;
@@ -190,6 +195,48 @@ final class EncryptedKeyTest extends TestCase
         // Then
         $this->expectException(MalformedEncryption::class);
         $this->expectExceptionMessageIs('An EncryptedKey holds exactly one EncryptionMethod (E-5).');
+
+        // When
+        EncryptedKey::of($element);
+    }
+
+    /**
+     * §9.2 row 35, Core I-4: an EncryptedKey of a document parsed outside the loader.
+     */
+    #[Test]
+    public function itRefusesAnElementOfAForeignDocument(): void
+    {
+        // Given
+        $root = Foreign::parse('<xenc:EncryptedKey xmlns:xenc="' . Names::XMLENC . '"/>')->documentElement;
+        static::assertNotNull($root);
+
+        // Then
+        $this->expectException(ForeignNode::class);
+
+        // When
+        EncryptedKey::of($root);
+    }
+
+    /**
+     * §9.2 row 35, E-5: the children of an EncryptedKey under another name.
+     */
+    #[Test]
+    public function itRefusesAnElementThatIsNotAnEncryptedKey(): void
+    {
+        // Given
+        $bytes = preg_replace(
+            ['~<xenc:EncryptedKey\b~', '~</xenc:EncryptedKey>~'],
+            ['<xenc:EncryptedKeys', '</xenc:EncryptedKeys>'],
+            Fixtures::bytes('vectors/response-encrypted-assertion-aes256-gcm.xml'),
+        );
+        static::assertNotNull($bytes);
+        $document = Loaded::document($bytes);
+        $keyInfo = Children::one(Encrypted::dataOf($document), new Name(Names::DSIG, 'KeyInfo'));
+        $element = Children::one($keyInfo, new Name(Names::XMLENC, 'EncryptedKeys'));
+
+        // Then
+        $this->expectException(MalformedEncryption::class);
+        $this->expectExceptionMessageIs('The element is not an xenc:EncryptedKey (E-5).');
 
         // When
         EncryptedKey::of($element);

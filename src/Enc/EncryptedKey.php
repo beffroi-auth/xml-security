@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Enc;
 
+use Beffroi\Xml\Core\Document;
+use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Enc\Exception\LimitExceeded;
 use Beffroi\Xml\Enc\Exception\MalformedEncryption;
 use Beffroi\Xml\Enc\Internal\CipherData;
@@ -36,12 +38,18 @@ final readonly class EncryptedKey
     }
 
     /**
-     * @throws MalformedEncryption when the structure, a child or a base64 text is not what section 5.3 says
+     * @throws MalformedEncryption when the element is not an xenc:EncryptedKey, or the structure, a child or a base64
+     *                             text is not what section 5.3 says
      * @throws Exception\UnknownKeyTransport
      * @throws LimitExceeded
+     * @throws ForeignNode when $element is not of a document of the brick
      */
     public static function of(Element $element): self
     {
+        Document::owning($element);
+        if (! Names::xenc('EncryptedKey')->matches($element)) {
+            throw new MalformedEncryption('The element is not an xenc:EncryptedKey (E-5).');
+        }
         $encryptionMethod = Names::xenc('EncryptionMethod');
         $keyInfo = Names::dsig('KeyInfo');
         $cipherData = Names::xenc('CipherData');

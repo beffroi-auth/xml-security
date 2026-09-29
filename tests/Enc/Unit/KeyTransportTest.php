@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Beffroi\Xml\Tests\Enc\Unit;
 
 use Beffroi\Xml\Core\Document;
+use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Enc\Exception\MalformedEncryption;
 use Beffroi\Xml\Enc\Exception\UnknownKeyTransport;
 use Beffroi\Xml\Enc\Internal\Names;
 use Beffroi\Xml\Enc\KeyTransport;
 use Beffroi\Xml\Enc\OaepHash;
+use Beffroi\Xml\Tests\Core\Support\Foreign;
 use Beffroi\Xml\Tests\Enc\Support\Loaded;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -313,6 +315,46 @@ final class KeyTransportTest extends TestCase
             MalformedEncryption::class,
             $noChild,
         ];
+    }
+
+    /**
+     * §9.2 row 35, Core I-4: an EncryptionMethod of a document parsed outside the loader.
+     */
+    #[Test]
+    public function itRefusesAnElementOfAForeignDocument(): void
+    {
+        // Given
+        $root = Foreign::parse('<xenc:EncryptionMethod xmlns:xenc="'
+        . Names::XMLENC
+        . '" Algorithm="'
+        . KeyTransport::RSA_OAEP_MGF1P
+        . '"/>')->documentElement;
+        static::assertNotNull($root);
+
+        // Then
+        $this->expectException(ForeignNode::class);
+
+        // When
+        KeyTransport::of($root);
+    }
+
+    /**
+     * §9.2 row 35, E-5: an element of another name, whatever it holds.
+     */
+    #[Test]
+    public function itRefusesAnElementThatIsNotAnEncryptionMethod(): void
+    {
+        // Given
+        $document = Loaded::document('<foo:Anything xmlns:foo="urn:foo" Algorithm="'
+        . KeyTransport::RSA_OAEP_MGF1P
+        . '"/>');
+
+        // Then
+        $this->expectException(MalformedEncryption::class);
+        $this->expectExceptionMessageIs('The element is not an xenc:EncryptionMethod (E-5).');
+
+        // When
+        KeyTransport::of($document->root());
     }
 
     /**

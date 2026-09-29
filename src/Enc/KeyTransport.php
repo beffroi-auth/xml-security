@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Beffroi\Xml\Enc;
 
 use Beffroi\Xml\Core\Attributes;
+use Beffroi\Xml\Core\Document;
+use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Enc\Exception\MalformedEncryption;
 use Beffroi\Xml\Enc\Exception\UnknownKeyTransport;
 use Beffroi\Xml\Enc\Internal\Names;
@@ -52,10 +54,16 @@ final readonly class KeyTransport
      * rsa-oaep with an optional DigestMethod and an optional MGF naming the same hash, SHA-1 when absent.
      *
      * @throws UnknownKeyTransport for every other Algorithm, and when the hashes differ
-     * @throws MalformedEncryption for an OAEPparams, an MGF under rsa-oaep-mgf1p, or any other child
+     * @throws MalformedEncryption for an element that is not an xenc:EncryptionMethod, an OAEPparams, an MGF under
+     *                             rsa-oaep-mgf1p, or any other child
+     * @throws ForeignNode when $encryptionMethod is not of a document of the brick
      */
     public static function of(Element $encryptionMethod): self
     {
+        Document::owning($encryptionMethod);
+        if (! Names::xenc('EncryptionMethod')->matches($encryptionMethod)) {
+            throw new MalformedEncryption('The element is not an xenc:EncryptionMethod (E-5).');
+        }
         $algorithm = Attributes::optional(
             $encryptionMethod,
             Names::attribute('Algorithm'),
