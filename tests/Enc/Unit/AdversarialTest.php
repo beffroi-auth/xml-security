@@ -6,7 +6,6 @@ namespace Beffroi\Xml\Tests\Enc\Unit;
 
 use Beffroi\Xml\Core\Children;
 use Beffroi\Xml\Core\Exception\DuplicateId;
-use Beffroi\Xml\Core\Exception\MixedContent;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Core\Text;
@@ -153,8 +152,8 @@ final class AdversarialTest extends TestCase
         ];
         yield 'an element inside the CipherValue' => [
             'adversarial-element-inside-cipher-value-refused.xml',
-            MixedContent::class,
-            'The element has a child that is neither text, CDATA, comment nor processing instruction (I-12).',
+            MalformedEncryption::class,
+            'A CipherValue holds nothing but text (E-5).',
         ];
     }
 
