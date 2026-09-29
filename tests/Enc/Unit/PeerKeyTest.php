@@ -10,6 +10,7 @@ use Beffroi\Xml\Enc\OaepHash;
 use Beffroi\Xml\Enc\PeerKey;
 use Beffroi\Xml\Enc\PrivateDecryptionKey;
 use Beffroi\Xml\Tests\Enc\Support\Fixtures;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
@@ -136,42 +137,77 @@ final class PeerKeyTest extends TestCase
         PeerKey::fromCertificateBase64('AAECAwQFBgcICQ==');
     }
 
+    /**
+     * E-11: one block of type CERTIFICATE whose bytes openssl cannot read as a certificate.
+     */
     #[Test]
-    #[TestWith(
-        ['-----BEGIN CERTIFICATE-----\nnot-a-certificate\n-----END CERTIFICATE-----\n'],
-        'a PEM armour around nothing',
-    )]
-    #[TestWith(['keys/test-signing-key.pem'], 'a private key, which openssl reads as no public key')]
-    public function itRefusesAPemThatGivesNoPublicKey(string $pem): void
+    public function itRefusesACertificateBlockAroundGarbage(): void
     {
-        // Given
-        $pem = str_starts_with($pem, 'keys/') ? Fixtures::bytes($pem) : $pem;
-
         // Then
         $this->expectException(InvalidKey::class);
         $this->expectExceptionMessageIs('The PEM holds no certificate and no public key (E-11).');
+
+        // When
+        PeerKey::fromCertificatePem("-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
+    }
+
+    /**
+     * §9.2 row 41, E-11: what is not exactly one block of type CERTIFICATE never reaches openssl, a path to a file
+     * that holds one first.
+     */
+    #[Test]
+    #[DataProvider('provideWhatIsNotOneCertificateBlock')]
+    public function itRefusesWhatIsNotOneCertificateBlock(string $pem): void
+    {
+        // Then
+        $this->expectException(InvalidKey::class);
+        $this->expectExceptionMessageIs('A certificate PEM is one block of type CERTIFICATE and nothing else (E-11).');
 
         // When
         PeerKey::fromCertificatePem($pem);
     }
 
     /**
-     * §9.2 row 32, E-11: a certificate of 1024 bits, then an EC one.
+     * @return iterable<string, array{string}>
+     */
+    public static function provideWhatIsNotOneCertificateBlock(): iterable
+    {
+        $certificate = Fixtures::bytes('keys/test-signing-certificate.pem');
+
+        yield 'plain text' => ['not a pem'];
+        yield 'empty' => [''];
+        yield 'a file:// path to a certificate' => ['file://' . Fixtures::path('keys/test-signing-certificate.pem')];
+        yield 'text before the armour' => ['issued to the SP' . "\n" . $certificate];
+        yield 'two certificates' => [Fixtures::bytes('keys/stranger-certificate.pem') . $certificate];
+        yield 'a public key' => [Fixtures::bytes('keys/test-signing-public-key.pem')];
+        yield 'a private key' => [Fixtures::bytes('keys/test-signing-key.pem')];
+    }
+
+    /**
+     * §9.2 row 41, E-11: what is not exactly one block of type PUBLIC KEY never reaches openssl.
      */
     #[Test]
-    #[TestWith(['keys/weak-rsa-1024-certificate.pem'], 'RSA-1024')]
-    #[TestWith(['keys/ec-p256-certificate.pem'], 'EC P-256')]
-    public function itRefusesAWeakOrNonRsaCertificate(string $file): void
+    #[DataProvider('provideWhatIsNotOnePublicKeyBlock')]
+    public function itRefusesWhatIsNotOnePublicKeyBlock(string $pem): void
     {
-        // Given
-        $pem = Fixtures::bytes($file);
-
         // Then
         $this->expectException(InvalidKey::class);
-        $this->expectExceptionMessageIs('A peer key is RSA of at least 2048 bits (E-11).');
+        $this->expectExceptionMessageIs('A public key PEM is one block of type PUBLIC KEY and nothing else (E-11).');
 
         // When
-        PeerKey::fromCertificatePem($pem);
+        PeerKey::fromPublicKeyPem($pem);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function provideWhatIsNotOnePublicKeyBlock(): iterable
+    {
+        $publicKey = Fixtures::bytes('keys/test-signing-public-key.pem');
+
+        yield 'a certificate' => [Fixtures::bytes('keys/test-signing-certificate.pem')];
+        yield 'a file:// path' => ['file://' . Fixtures::path('keys/test-signing-public-key.pem')];
+        yield 'two public keys' => [$publicKey . $publicKey];
     }
 
     /**

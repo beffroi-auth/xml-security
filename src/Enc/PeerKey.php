@@ -8,7 +8,7 @@ use function base64_decode;
 use Beffroi\Xml\Enc\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Enc\Exception\EncryptionFailed;
 use Beffroi\Xml\Enc\Exception\InvalidKey;
-use function chunk_split;
+use Beffroi\Xml\Enc\Internal\Pem;
 use function is_string;
 use const OPENSSL_KEYTYPE_RSA;
 use const OPENSSL_PKCS1_OAEP_PADDING;
@@ -38,11 +38,17 @@ final readonly class PeerKey
     }
 
     /**
-     * @throws InvalidKey when the PEM holds no certificate, or a key that is not RSA of at least 2048 bits
+     * @throws InvalidKey unless $pem is exactly one PEM block of type CERTIFICATE (E-11), or when the key of the
+     *                    certificate is not RSA of at least 2048 bits
      */
     public static function fromCertificatePem(string $pem): self
     {
-        return self::fromPublic($pem);
+        $certificate = Pem::block(
+            $pem,
+            'CERTIFICATE',
+        ) ?? throw new InvalidKey('A certificate PEM is one block of type CERTIFICATE and nothing else (E-11).');
+
+        return self::fromPublic(Pem::armour($certificate, 'CERTIFICATE'));
     }
 
     /**
@@ -53,22 +59,26 @@ final readonly class PeerKey
      */
     public static function fromCertificateBase64(string $base64): self
     {
-        $clean = preg_replace('~\s+~', '', $base64) ?? '';
-        if ($clean === '' || base64_decode($clean, true) === false) {
+        $certificate = base64_decode(preg_replace('~\s+~', '', $base64) ?? '', true);
+        if ($certificate === false || $certificate === '') {
             throw new InvalidKey('A certificate is the base64 of its DER (E-11).');
         }
 
-        return self::fromPublic(
-            "-----BEGIN CERTIFICATE-----\n" . chunk_split($clean, 64, "\n") . "-----END CERTIFICATE-----\n",
-        );
+        return self::fromPublic(Pem::armour($certificate, 'CERTIFICATE'));
     }
 
     /**
-     * @throws InvalidKey when the PEM holds no public key, or one that is not RSA of at least 2048 bits
+     * @throws InvalidKey unless $pem is exactly one PEM block of type PUBLIC KEY (E-11), or when the key is not RSA
+     *                    of at least 2048 bits
      */
     public static function fromPublicKeyPem(string $pem): self
     {
-        return self::fromPublic($pem);
+        $key = Pem::block(
+            $pem,
+            'PUBLIC KEY',
+        ) ?? throw new InvalidKey('A public key PEM is one block of type PUBLIC KEY and nothing else (E-11).');
+
+        return self::fromPublic(Pem::armour($key, 'PUBLIC KEY'));
     }
 
     /**
@@ -99,6 +109,8 @@ final readonly class PeerKey
     }
 
     /**
+     * @param string $pem one block the factories wrote themselves, never the consumer's string (E-11)
+     *
      * @throws InvalidKey
      */
     private static function fromPublic(string $pem): self
