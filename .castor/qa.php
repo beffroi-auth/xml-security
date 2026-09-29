@@ -50,6 +50,7 @@ const INFECTION_STRICT_FILES = [
     'src/Enc/Internal/Base64.php',
     'src/Enc/Internal/Structure.php',
     'src/Enc/Internal/CipherData.php',
+    'src/Enc/Internal/Pem.php',
     'src/Enc/Decryptor.php',
     'src/Enc/PrivateDecryptionKey.php',
     'src/Enc/Encryptor.php',
