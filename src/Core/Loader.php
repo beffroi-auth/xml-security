@@ -21,6 +21,7 @@ use const LIBXML_NO_XXE;
 use const LIBXML_NONET;
 use function libxml_use_internal_errors;
 use LibXMLError;
+use SensitiveParameter;
 use function preg_match;
 use function sprintf;
 use function str_contains;
@@ -44,11 +45,12 @@ final readonly class Loader
     }
 
     /**
-     * Takes bytes, never a path or a stream: reading a file or a request body is the caller's business.
+     * Takes bytes, never a path or a stream: reading a file or a request body is the caller's business. The bytes
+     * are a SensitiveParameter: a decrypted plaintext stays out of the traces of its refusal.
      *
      * @throws RefusedXml
      */
-    public function load(string $bytes): Document
+    public function load(#[SensitiveParameter] string $bytes): Document
     {
         if (strlen($bytes) > $this->limits->maxBytes) {
             throw new LimitExceeded(sprintf(
