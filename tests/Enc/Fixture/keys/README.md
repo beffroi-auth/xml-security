@@ -10,3 +10,7 @@ In this namespace, `test-signing-certificate.pem` is the peer's encryption certi
 was encrypted to, and `test-signing-key.pem` the decryption key that reads them; the stranger's certificate encrypts
 `../hostile/encrypted-under-the-stranger-certificate-refused.xml`, which that key cannot unwrap; the weak, EC and DSA
 files serve the refusal of a key that is not RSA of at least 2048 bits (E-11).
+
+One file of this directory has no copy in Dsig's: `test-signing-public-key.pem`, the public key of the test certificate, made
+in Alpine 3.22 with OpenSSL 3.5.8 on 27 September 2026 with `openssl x509 -in test-signing-certificate.pem -pubkey -noout`,
+for `PeerKey::fromPublicKeyPem()`.

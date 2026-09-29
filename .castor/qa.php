@@ -50,8 +50,11 @@ const INFECTION_STRICT_FILES = [
     'src/Enc/Internal/Base64.php',
     'src/Enc/Internal/Structure.php',
     'src/Enc/Internal/CipherData.php',
+    'src/Enc/Internal/Pem.php',
     'src/Enc/Decryptor.php',
     'src/Enc/PrivateDecryptionKey.php',
+    'src/Enc/Encryptor.php',
+    'src/Enc/PeerKey.php',
 ];
 
 /**
@@ -272,12 +275,40 @@ function xmlsec(
 }
 
 #[AsTask(
-    description: 'Sign a response and its assertion with every scheme this build offers, then verify both signatures of each with xmlsec1 (spec/dsig.md section 9.3 row 10): PHP_VERSION=8.5 castor xmlsec-oracle',
+    description: 'Decrypt an encrypted XML file with xmlsec1, the implementation that is not this one (spec/enc.md section 9.3), in an Alpine container, and print the plaintext document: castor xmlsec-decrypt tests/Enc/Fixture/behaviour/encrypted-by-the-encryptor-aes256-gcm.xml',
+)]
+function xmlsec_decrypt(
+    #[AsArgument(description: 'The encrypted file, relative to the working directory')]
+    string $file,
+    #[AsOption(description: 'The private key that unwraps the session key, relative to the working directory')]
+    string $key = 'tests/Enc/Fixture/keys/test-signing-key.pem',
+): void {
+    run([
+        'docker',
+        'run',
+        '--rm',
+        '-i',
+        '-v',
+        getcwd() . ':/project:ro',
+        '-w',
+        '/project',
+        'alpine:3.22',
+        'sh',
+        '-c',
+        'apk add -q xmlsec >/dev/null 2>&1 && xmlsec1 --decrypt --lax-key-search --privkey-pem '
+            . escapeshellarg($key)
+            . ' '
+            . escapeshellarg($file),
+    ]);
+}
+
+#[AsTask(
+    description: 'Sign a response and its assertion with every scheme this build offers and encrypt the assertion under every one, then have xmlsec1 verify and decrypt each (spec/dsig.md and spec/enc.md, section 9.3 row 10): PHP_VERSION=8.5 castor xmlsec-oracle',
 )]
 function xmlsec_oracle(): void
 {
     $directory = '.ci-tools/oracle';
-    foreach (glob($directory . '/*.xml') ?: [] as $file) {
+    foreach ([...(glob($directory . '/*.xml') ?: []), ...(glob($directory . '/enc/*') ?: [])] as $file) {
         unlink($file);
     }
     phpqa(
@@ -289,7 +320,7 @@ function xmlsec_oracle(): void
             '--configuration',
             '.ci-tools/phpunit.xml.dist',
             '--filter',
-            'SignerOracleTest',
+            'SignerOracleTest|EncryptorOracleTest',
         ],
         ['XMLSEC_ORACLE' => $directory],
     );
@@ -305,7 +336,11 @@ function xmlsec_oracle(): void
         'alpine:3.22',
         'sh',
         '-c',
-        'apk add -q xmlsec >/dev/null 2>&1 && sh tests/Dsig/Fixture/oracle/verify-every-scheme.sh ' . $directory,
+        'apk add -q xmlsec libxml2-utils >/dev/null 2>&1 && sh tests/Dsig/Fixture/oracle/verify-every-scheme.sh '
+            . $directory
+            . ' && sh tests/Enc/Fixture/oracle/decrypt-every-scheme.sh '
+            . $directory
+            . '/enc',
     ]);
 }
 
