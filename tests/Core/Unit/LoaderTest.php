@@ -18,10 +18,12 @@ use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Tests\Core\Support\Fixtures;
 use Beffroi\Xml\Tests\Core\Support\Libxml;
 use Beffroi\Xml\Tests\Core\Support\Stack;
+use function ini_get;
 use function libxml_use_internal_errors;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use SensitiveParameterValue;
 use function str_repeat;
 
 /**
@@ -40,6 +42,30 @@ final class LoaderTest extends TestCase
     /**
      * Section 6.1 step 7: a Document holding the root and the index, recognised by owning().
      */
+    /**
+     * Section 5: the bytes are a SensitiveParameter, so that the trace of a refusal never carries them, a decrypted
+     * plaintext among them.
+     */
+    #[Test]
+    public function itKeepsTheBytesItRefusesOutOfTheTrace(): void
+    {
+        // Given
+        if (ini_get('zend.exception_ignore_args') === '1') {
+            static::markTestSkipped('This build leaves the arguments out of every trace.');
+        }
+        $loader = new Loader(Stack::idAttributes());
+
+        // When
+        try {
+            $loader->load('<!DOCTYPE a><a>a plaintext</a>');
+            static::fail('A DOCTYPE is refused.');
+        } catch (DoctypeRefused $refused) {
+            // Then
+            static::assertInstanceOf(SensitiveParameterValue::class, $refused->getTrace()[0]['args'][0] ?? null);
+            static::assertStringNotContainsString('a plaintext', $refused->getTraceAsString());
+        }
+    }
+
     #[Test]
     public function itLoadsADocumentAndIndexesItsIds(): void
     {

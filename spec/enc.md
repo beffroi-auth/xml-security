@@ -178,7 +178,7 @@ final readonly class PeerKey
 }
 ```
 
-`DecryptionKeyInterface` is the one port of the namespace: a key management service unwraps without ever handing its key over, and answers `null` rather than a reason, so that the port itself cannot become the oracle. `PrivateDecryptionKey` is the implementation on a PEM in memory. `PeerKey` is the encryption certificate of the peer's metadata, read the way `Dsig`'s `VerificationKey` reads a signing certificate: `openssl_pkey_get_public()` on the PEM armour, no DER parser; whether the certificate is expired or trusted is the metadata layer's business.
+`DecryptionKeyInterface` is the one port of the namespace: a key management service unwraps without ever handing its key over, and answers `null` rather than a reason, so that the port itself cannot become the oracle. `PrivateDecryptionKey` is the implementation on a PEM in memory, and reads that PEM and nothing else: a string that starts with `file://`, which `openssl_pkey_get_private()` opens as a path, is refused, and a `null` passphrase is passed as the empty one, since OpenSSL asks the terminal for the passphrase of an encrypted PEM given none (measured, dsig.md section 13). `PeerKey` is the encryption certificate of the peer's metadata, read the way `Dsig`'s `VerificationKey` reads a signing certificate: `openssl_pkey_get_public()` on the PEM armour, no DER parser; whether the certificate is expired or trusted is the metadata layer's business.
 
 ### 5.3 The reading model
 
@@ -244,7 +244,7 @@ final readonly class Decryptor
 }
 ```
 
-The consumer reads `$document->root()`, the decrypted element as `Core` loaded it, and hands it to `Dsig` when it is signed. Nothing of the encrypted element is kept.
+The consumer reads `$document->root()`, the decrypted element as `Core` loaded it, and hands it to `Dsig` when it is signed. It holds the `Document` for as long as it reads its nodes, never the root alone: a document no one holds is forgotten by `Core`'s registry, and its nodes become foreign (core.md 6.1 step 7). Nothing of the encrypted element is kept.
 
 ### 5.5 Encryption
 
@@ -306,7 +306,7 @@ An `EncryptionRefused` is input the namespace refuses; it extends `Core`'s `Refu
 1. **Ownership.** `Document::owning($encrypted)` (`ForeignNode` otherwise).
 2. **The reading model.** `EncryptedData::of()` reads the structure of 5.3 with `Core`'s `Children`, `Attributes` and `Text`, refusing at the first fault: the element is a `xenc:EncryptedData`; its `Type` is `http://www.w3.org/2001/04/xmlenc#Element` (a missing `Type`, `Content` or anything else is a refusal: the plaintext is a whole element or nothing); the `Algorithm` of its `EncryptionMethod` goes through `ContentAlgorithm::fromUri()` (E-1), and the element has no child (a `KeySize` or an `OAEPparams` is a refusal); its `KeyInfo` holds exactly one `EncryptedKey` and nothing else; the `EncryptedKey`'s `EncryptionMethod` is `rsa-oaep-mgf1p` with an optional `ds:DigestMethod` that names SHA-1, the one hash MGF1 uses under that name (XML Encryption 1.0 §5.4.2, the shape Shibboleth and ADFS write), or `rsa-oaep` with an optional `ds:DigestMethod` and an optional `xenc11:MGF` naming the same hash, SHA-1 when absent (XML Encryption 1.1 §5.5.2), through `OaepHash::fromDigestUri()` and `fromMgfUri()` (E-1); an `OAEPparams`, an `MGF` under `rsa-oaep-mgf1p` and any other child are refusals; the `EncryptedKey`'s `KeyInfo` is not read; each `CipherData` holds one `CipherValue` and no `CipherReference`; both cipher values are decoded (E-7) and their lengths checked: the key's between 256 and `maxEncryptedKeyBytes` bytes, the data's at least `IV_BYTES + 1 + TAG_BYTES` (E-2, E-13).
 3. **Availability.** A hash this build cannot unwrap under is `AlgorithmUnavailable`, before any key is touched.
-4. **The session key.** `$key->unwrap($encryptedKey->cipherValue, $transport->hash)`; `null` is `DecryptionFailed` (E-3); a key whose length is not `$algorithm->keyBytes()` is `DecryptionFailed` (E-2).
+4. **The session key.** `$key->unwrap($encryptedKey->cipherValue, $transport->hash)`; `null` is `DecryptionFailed` (E-3); a key whose length is not `$algorithm->keyBytes()` is `DecryptionFailed` (E-2). `PrivateDecryptionKey` empties OpenSSL's error queue after the unwrap, whatever its outcome: an OAEP decoding error left there would tell whoever reads `openssl_error_string()` which step failed (E-3).
 5. **The content.** The IV is the first `IV_BYTES` of the data's cipher value, the tag its last `TAG_BYTES`, the ciphertext what lies between; `openssl_decrypt($ciphertext, $algorithm->cipher(), $sessionKey, OPENSSL_RAW_DATA, $iv, $tag)`; `false` is `DecryptionFailed` (E-3). An empty plaintext cannot come back: step 2 refused a cipher value with no ciphertext byte, and GCM keeps the length (section 9.2, row 26).
 6. **The result.** `$this->loader->load($plaintext)` gives the `Document` (E-4): the same loader as everything else, so the same bounds, the same DOCTYPE and ID rules. What `Core` refuses there is `Core`'s refusal.
 
@@ -402,6 +402,8 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | `EncryptedKey::of()` or `KeyTransport::of()` on an element of a document parsed outside the loader, then on an element of another name | `ForeignNode`, then `MalformedEncryption` (E-5) |
 | An element inside a `CipherValue` | `MalformedEncryption` (E-5), never `Core`'s `MixedContent`: nothing was decrypted |
 | The `CipherValue` of an `EncryptedKey` of 4 097 bytes of text | `LimitExceeded` (E-13), before anything is decoded |
+| A decryption key given as a `file://` path to a key file | `InvalidKey` (E-11), nothing read from the disk |
+| OpenSSL's error queue after a `DecryptionFailed` whose unwrap failed | empty, as after a failed tag (E-3) |
 
 ### 9.3 Behaviour corpus
 
