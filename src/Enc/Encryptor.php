@@ -12,16 +12,18 @@ use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Core\Internal\Registry;
 use Beffroi\Xml\Enc\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Enc\Exception\EncryptionFailed;
+use Beffroi\Xml\Enc\Exception\InvalidKey;
 use Beffroi\Xml\Enc\Internal\Names;
+use Beffroi\Xml\Enc\Internal\Pem;
 use function chunk_split;
 use Dom\Element;
 use Dom\XMLDocument;
 use InvalidArgumentException;
 use function openssl_encrypt;
 use const OPENSSL_RAW_DATA;
-use function preg_replace;
 use function random_bytes;
 use function rtrim;
+use SensitiveParameter;
 
 /**
  * Encryption in the order of section 6.2: the availability of the hash, the element canonicalized with comments so
@@ -42,8 +44,10 @@ final readonly class Encryptor
      * exclusive canonical form with comments of $element under a fresh session key and IV, the key under RSA-OAEP
      * to $peer. The consumer puts it where its protocol says and removes the plaintext element itself.
      *
-     * @param ?string $certificatePem when given, the KeyInfo of the EncryptedKey carries it, for peers that want the hint
+     * @param ?string $certificatePem when given, one PEM certificate (E-14), carried by the KeyInfo of the EncryptedKey
+     *                                for peers that want the hint
      *
+     * @throws InvalidKey when $certificatePem is not exactly one certificate (E-14)
      * @throws AlgorithmUnavailable a hash this build cannot wrap under
      * @throws InvalidArgumentException when $element is not connected to its document, or an element of its
      *                                  subtree without a prefix has no declaration in scope (core.md 6.3)
@@ -55,11 +59,20 @@ final readonly class Encryptor
         PeerKey $peer,
         ContentAlgorithm $algorithm = ContentAlgorithm::Aes256Gcm,
         KeyTransport $transport = new KeyTransport(OaepHash::Sha1),
+        #[SensitiveParameter]
         ?string $certificatePem = null,
     ): Element {
         if (! $transport->hash->isAvailable()) {
             throw new AlgorithmUnavailable('This build cannot wrap under a hash other than SHA-1: the RSA functions take no digest before PHP 8.5 (section 13).');
         }
+        $certificate = $certificatePem === null
+            ? null
+            : base64_encode(
+                Pem::block(
+                    $certificatePem,
+                    'CERTIFICATE',
+                ) ?? throw new InvalidKey('The certificate is one PEM block of type CERTIFICATE and nothing else (E-14).'),
+            );
         $plaintext = $this->canonicalizer->canonicalize(
             $element,
             CanonicalizationMethod::ExclusiveWithComments,
@@ -106,16 +119,19 @@ final readonly class Encryptor
                 $transport->hash->mgfUri(),
             );
         }
-        if ($certificatePem !== null) {
+        if ($certificate !== null) {
             $x509 = $this->child(
                 $xml,
                 $this->child($xml, $key, Names::DSIG, 'ds:KeyInfo'),
                 Names::DSIG,
                 'ds:X509Data',
             );
-            $this->child($xml, $x509, Names::DSIG, 'ds:X509Certificate')->appendChild($xml->createTextNode(
-                preg_replace('~-----[A-Z ]+-----|\s~', '', $certificatePem) ?? '',
-            ));
+            $this->child(
+                $xml,
+                $x509,
+                Names::DSIG,
+                'ds:X509Certificate',
+            )->appendChild($xml->createTextNode($certificate));
         }
         $this->cipherData($xml, $key, $wrapped);
         $this->cipherData($xml, $data, $iv . $ciphertext . $tag);

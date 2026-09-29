@@ -26,6 +26,7 @@ use Beffroi\Xml\Enc\Decryptor;
 use Beffroi\Xml\Enc\EncryptedData;
 use Beffroi\Xml\Enc\Encryptor;
 use Beffroi\Xml\Enc\Exception\AlgorithmUnavailable;
+use Beffroi\Xml\Enc\Exception\InvalidKey;
 use Beffroi\Xml\Enc\KeyTransport;
 use Beffroi\Xml\Enc\OaepHash;
 use Beffroi\Xml\Enc\PeerKey;
@@ -405,12 +406,49 @@ final class EncryptorTest extends TestCase
     }
 
     /**
-     * The exclusive canonical form with comments, what the encryptor encrypts (E-9).
+     * §9.2 row 40, E-14: a certificate hint that is not exactly one certificate is refused before anything is
+     * canonicalized, a private key first, the one thing that must never reach the peer.
+     */
+    #[Test]
+    #[DataProvider('provideHintsThatAreNotOneCertificate')]
+    public function itRefusesACertificateHintThatIsNotOneCertificate(string $certificatePem): void
+    {
+        // Given
+        $document = Built::responseWithAssertion();
+
+        // Then
+        $this->expectException(InvalidKey::class);
+        $this->expectExceptionMessageIs('The certificate is one PEM block of type CERTIFICATE and nothing else (E-14).');
+
+        // When
+        $this->encryptor->encrypt(Built::assertionOf($document), $this->peer, certificatePem: $certificatePem);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function provideHintsThatAreNotOneCertificate(): iterable
+    {
+        $key = Fixtures::bytes('keys/test-signing-key.pem');
+        $certificate = Fixtures::bytes('keys/test-signing-certificate.pem');
+
+        yield 'a private key' => [$key];
+        yield 'a key then a certificate' => [$key . $certificate];
+        yield 'a certificate then a key' => [$certificate . $key];
+        yield 'two certificates' => [$certificate . Fixtures::bytes('keys/stranger-certificate.pem')];
+        yield 'text after the certificate' => [$certificate . 'x'];
+        yield 'no content' => ["-----BEGIN CERTIFICATE-----\n\n-----END CERTIFICATE-----\n"];
+        yield 'content that is not base64' => ["-----BEGIN CERTIFICATE-----\nA===\n-----END CERTIFICATE-----\n"];
+    }
+
+    /**
+     * The exclusive canonical form with comments, the content a decryption gives back (E-9).
      */
     private function canonical(Element $element): string
     {
         return $this->canonicalizer->canonicalize($element, CanonicalizationMethod::ExclusiveWithComments)->bytes;
     }
+
 
     /**
      * The response with its assertion replaced by an EncryptedAssertion holding $encrypted, what the consumer does.
