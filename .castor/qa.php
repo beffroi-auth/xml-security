@@ -42,6 +42,14 @@ const INFECTION_STRICT_FILES = [
     'src/Dsig/VerificationKeys.php',
     'src/Dsig/Signer.php',
     'src/Dsig/PrivateKey.php',
+    'src/Enc/ContentAlgorithm.php',
+    'src/Enc/OaepHash.php',
+    'src/Enc/KeyTransport.php',
+    'src/Enc/EncryptedData.php',
+    'src/Enc/EncryptedKey.php',
+    'src/Enc/Internal/Base64.php',
+    'src/Enc/Internal/Structure.php',
+    'src/Enc/Internal/CipherData.php',
 ];
 
 /**

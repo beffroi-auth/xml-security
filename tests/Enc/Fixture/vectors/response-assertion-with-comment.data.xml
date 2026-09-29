@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_response-a1b2c3" Version="2.0" IssueInstant="2026-09-27T10:00:00Z" Destination="https://sp.example.org/acs">
+  <saml:Issuer>https://idp.example.org</saml:Issuer>
+  <samlp:Status>
+    <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </samlp:Status>
+  <saml:EncryptedAssertion>
+    <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_assertion-d4e5f6" Version="2.0" IssueInstant="2026-09-27T10:00:00Z">
+      <saml:Issuer>https://idp.example.org</saml:Issuer>
+      <saml:Subject>
+        <saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">user-<!-- a comment inside the plaintext -->0001</saml:NameID>
+        <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+          <saml:SubjectConfirmationData NotOnOrAfter="2026-09-27T10:05:00Z" Recipient="https://sp.example.org/acs" InResponseTo="_request-7g8h9i"/>
+        </saml:SubjectConfirmation>
+      </saml:Subject>
+      <saml:Conditions NotBefore="2026-09-27T09:59:00Z" NotOnOrAfter="2026-09-27T10:05:00Z">
+        <saml:AudienceRestriction>
+          <saml:Audience>https://sp.example.org</saml:Audience>
+        </saml:AudienceRestriction>
+      </saml:Conditions>
+      <saml:AuthnStatement AuthnInstant="2026-09-27T09:58:00Z" SessionIndex="_session-j1k2l3">
+        <saml:AuthnContext>
+          <saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef>
+        </saml:AuthnContext>
+      </saml:AuthnStatement>
+      <saml:AttributeStatement>
+        <saml:Attribute Name="mail" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+          <saml:AttributeValue>user@example.org</saml:AttributeValue>
+        </saml:Attribute>
+      </saml:AttributeStatement>
+    </saml:Assertion>
+  </saml:EncryptedAssertion>
+</samlp:Response>
