@@ -20,3 +20,15 @@ and alters the vector's values byte by byte; or by xmlsec1, as named below.
 | `tag-truncated-refused.xml` | `derive-decryptor.php`: the vector's data cipher value shortened by one byte | row 24, CVE-2026-32313 and CVE-2026-32600 |
 | `tag-altered-refused.xml`, `ciphertext-altered-refused.xml`, `iv-altered-refused.xml` | `derive-decryptor.php`: one byte of the tag, of the ciphertext, of the IV flipped | row 25 |
 | `plaintext-with-doctype-refused.xml`, `plaintext-with-two-roots-refused.xml`, `plaintext-not-xml-refused.xml` | `derive-decryptor.php`: an authentic ciphertext whose plaintext holds a DOCTYPE, two root elements, or no XML at all | rows 27 and 28, what `Core` refuses of the plaintext (E-4) |
+
+## The adversarial pass
+
+The `adversarial-*-refused.xml` files are the attempts of spec/enc.md section 9.7 the namespace refuses, derived by
+`derive-adversarial.php` from the same vector: algorithm URIs that differ by case, a slash or a fragment, or are
+surrounded by spaces; a `Type` in another case or with a trailing space; padding inside the cipher value, the URL-safe
+alphabet, extra padding; the `EncryptedKey` moved next to the `EncryptedData` with a `RetrievalMethod` in its place,
+the sibling form of section 12; the cipher value shortened and lengthened around the IV and the tag; a wrapped key
+of the modulus length filled with zeros, with ones, and equal to the modulus; an `Id` equal to the response's; an
+`EncryptedData` in a namespace that is almost the right one; an `MGF` and a `DigestMethod` in the xmlenc namespace;
+an element inside the `CipherValue`. `AdversarialTest` asserts each with the exception and the message it got, and
+the one message of E-3 for every failure. The attempts that decrypt are under `../behaviour/`.
