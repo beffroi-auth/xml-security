@@ -331,6 +331,7 @@ Constants of the namespace, never options.
 |---|---|---|
 | `maxCipherValueBytes` | 2 097 152 of text | The plaintext is bounded by `Core`'s `maxBytes`, 1 MiB by default and 8 MiB at the ceiling; a mebibyte of plaintext is 1 398 160 characters of base64 with its IV and tag. Two mebibytes of text leave the room and stop a cipher value of a hundred megabytes before it is decoded. A consumer who raised `maxBytes` to its ceiling has a case this document does not know. |
 | `maxEncryptedKeyBytes` | 1 024 decoded | RSA-2048 wraps in 256 bytes, RSA-8192 in 1 024; a value under 256 bytes is refused too (E-11). |
+| `maxEncryptedKeyTextBytes` | 4 096 of text | The text of an `EncryptedKey`'s `CipherValue`, checked before decoding: 1 024 bytes are 1 368 characters of base64, and the lines and indentation of a pretty-printed document stay far below. `maxCipherValueBytes` would let two mebibytes be decoded to be refused. |
 | `IV_BYTES`, `TAG_BYTES` | 12, 16 | XML Encryption 1.1 §5.2.4, and what GCM was standardised with (NIST SP 800-38D). |
 | The session key | exactly `keyBytes()` of the method | A longer key decrypts under `openssl_decrypt()` (measured); nothing but the exact length reaches it. |
 
@@ -400,6 +401,7 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | The encrypted element from a document parsed outside the loader | `ForeignNode` |
 | `EncryptedKey::of()` or `KeyTransport::of()` on an element of a document parsed outside the loader, then on an element of another name | `ForeignNode`, then `MalformedEncryption` (E-5) |
 | An element inside a `CipherValue` | `MalformedEncryption` (E-5), never `Core`'s `MixedContent`: nothing was decrypted |
+| The `CipherValue` of an `EncryptedKey` of 4 097 bytes of text | `LimitExceeded` (E-13), before anything is decoded |
 
 ### 9.3 Behaviour corpus
 
