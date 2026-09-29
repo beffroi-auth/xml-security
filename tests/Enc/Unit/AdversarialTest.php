@@ -332,6 +332,7 @@ final class AdversarialTest extends TestCase
         // When
         match ($side) {
             'private' => PrivateDecryptionKey::fromPem($pem),
+            'certificate' => PeerKey::fromCertificatePem($pem),
             default => PeerKey::fromPublicKeyPem($pem),
         };
     }
@@ -342,14 +343,14 @@ final class AdversarialTest extends TestCase
     public static function provideWrongKinds(): iterable
     {
         $noPrivate = 'The PEM holds no private key, or the passphrase is wrong (E-11).';
-        $noPublic = 'The PEM holds no certificate and no public key (E-11).';
+        $noPublic = 'A public key PEM is one block of type PUBLIC KEY and nothing else (E-11).';
 
         yield 'a public key as the decryption key' => ['private', 'keys/test-signing-public-key.pem', $noPrivate];
         yield 'a certificate as the decryption key' => ['private', 'keys/ec-p256-certificate.pem', $noPrivate];
         yield 'a private key as the peer key' => ['peer', 'keys/weak-rsa-1024-key.pem', $noPublic];
         yield 'a DSA private key as the peer key' => ['peer', 'keys/dsa-2048-key.pem', $noPublic];
         yield 'an EC certificate as the peer key' => [
-            'peer',
+            'certificate',
             'keys/ec-p256-certificate.pem',
             'A peer key is RSA of at least 2048 bits (E-11).',
         ];
