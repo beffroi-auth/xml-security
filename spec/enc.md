@@ -128,7 +128,9 @@ final readonly class KeyTransport
      * SHA-1, or rsa-oaep with an optional DigestMethod and an optional MGF naming the same hash, SHA-1 when absent.
      *
      * @throws UnknownKeyTransport for every other Algorithm, and when the hashes differ
-     * @throws MalformedEncryption for an OAEPparams, an MGF under rsa-oaep-mgf1p, or any other child
+     * @throws MalformedEncryption for an element that is not an xenc:EncryptionMethod, an OAEPparams, an MGF under
+     *                             rsa-oaep-mgf1p, or any other child
+     * @throws ForeignNode when $encryptionMethod is not of a document of the brick
      */
     public static function of(\Dom\Element $encryptionMethod): self;
     /** The URI written into an EncryptionMethod: rsa-oaep-mgf1p for SHA-1, rsa-oaep with a DigestMethod and an MGF otherwise */
@@ -202,6 +204,16 @@ final readonly class EncryptedData
 
 final readonly class EncryptedKey
 {
+    /**
+     * The xenc:EncryptedKey element read strictly (E-5), the one EncryptedData::of() finds in its KeyInfo.
+     *
+     * @throws MalformedEncryption when the element is not an xenc:EncryptedKey, or its structure, a base64 text or a
+     *                             length is not what 5.3 says
+     * @throws UnknownKeyTransport, LimitExceeded
+     * @throws ForeignNode when $element is not of a document of the brick
+     */
+    public static function of(\Dom\Element $element): self;
+
     public function __construct(
         public \Dom\Element $element,
         public KeyTransport $transport,
@@ -386,6 +398,8 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | A peer certificate of 1024 bits, then an EC one | `InvalidKey` (E-11) |
 | Every failing fixture of the `DecryptionFailed` rows | the same message, `The data could not be decrypted (E-3).`, and no other property of the exception |
 | The encrypted element from a document parsed outside the loader | `ForeignNode` |
+| `EncryptedKey::of()` or `KeyTransport::of()` on an element of a document parsed outside the loader, then on an element of another name | `ForeignNode`, then `MalformedEncryption` (E-5) |
+| An element inside a `CipherValue` | `MalformedEncryption` (E-5), never `Core`'s `MixedContent`: nothing was decrypted |
 
 ### 9.3 Behaviour corpus
 
