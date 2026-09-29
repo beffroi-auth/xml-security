@@ -178,7 +178,7 @@ final readonly class PeerKey
 }
 ```
 
-`DecryptionKeyInterface` is the one port of the namespace: a key management service unwraps without ever handing its key over, and answers `null` rather than a reason, so that the port itself cannot become the oracle. `PrivateDecryptionKey` is the implementation on a PEM in memory. `PeerKey` is the encryption certificate of the peer's metadata, read the way `Dsig`'s `VerificationKey` reads a signing certificate: `openssl_pkey_get_public()` on the PEM armour, no DER parser; whether the certificate is expired or trusted is the metadata layer's business.
+`DecryptionKeyInterface` is the one port of the namespace: a key management service unwraps without ever handing its key over, and answers `null` rather than a reason, so that the port itself cannot become the oracle. `PrivateDecryptionKey` is the implementation on a PEM in memory, and reads that PEM and nothing else: a string that starts with `file://`, which `openssl_pkey_get_private()` opens as a path, is refused, and a `null` passphrase is passed as the empty one, since OpenSSL asks the terminal for the passphrase of an encrypted PEM given none (measured, dsig.md section 13). `PeerKey` is the encryption certificate of the peer's metadata, read the way `Dsig`'s `VerificationKey` reads a signing certificate: `openssl_pkey_get_public()` on the PEM armour, no DER parser; whether the certificate is expired or trusted is the metadata layer's business.
 
 ### 5.3 The reading model
 
@@ -402,6 +402,7 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | `EncryptedKey::of()` or `KeyTransport::of()` on an element of a document parsed outside the loader, then on an element of another name | `ForeignNode`, then `MalformedEncryption` (E-5) |
 | An element inside a `CipherValue` | `MalformedEncryption` (E-5), never `Core`'s `MixedContent`: nothing was decrypted |
 | The `CipherValue` of an `EncryptedKey` of 4 097 bytes of text | `LimitExceeded` (E-13), before anything is decoded |
+| A decryption key given as a `file://` path to a key file | `InvalidKey` (E-11), nothing read from the disk |
 
 ### 9.3 Behaviour corpus
 
