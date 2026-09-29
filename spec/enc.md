@@ -244,7 +244,7 @@ final readonly class Decryptor
 }
 ```
 
-The consumer reads `$document->root()`, the decrypted element as `Core` loaded it, and hands it to `Dsig` when it is signed. Nothing of the encrypted element is kept.
+The consumer reads `$document->root()`, the decrypted element as `Core` loaded it, and hands it to `Dsig` when it is signed. It holds the `Document` for as long as it reads its nodes, never the root alone: a document no one holds is forgotten by `Core`'s registry, and its nodes become foreign (core.md 6.1 step 7). Nothing of the encrypted element is kept.
 
 ### 5.5 Encryption
 
