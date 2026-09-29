@@ -17,6 +17,7 @@ use function openssl_pkey_get_public;
 use function openssl_public_encrypt;
 use OpenSSLAsymmetricKey;
 use function preg_replace;
+use SensitiveParameter;
 
 /**
  * The encryption certificate of the peer's metadata (section 5.2): the certificate's PEM, the base64 of its DER as
@@ -89,7 +90,7 @@ final readonly class PeerKey
      * @throws AlgorithmUnavailable when this build cannot wrap under $hash
      * @throws EncryptionFailed when the primitive fails: never input
      */
-    public function wrap(string $sessionKey, OaepHash $hash): string
+    public function wrap(#[SensitiveParameter] string $sessionKey, OaepHash $hash): string
     {
         if (! $hash->isAvailable()) {
             throw new AlgorithmUnavailable('This build cannot wrap under a hash other than SHA-1: the RSA functions take no digest before PHP 8.5 (section 13).');
