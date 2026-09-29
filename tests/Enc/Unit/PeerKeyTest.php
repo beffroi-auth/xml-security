@@ -5,16 +5,19 @@ declare(strict_types=1);
 namespace Beffroi\Xml\Tests\Enc\Unit;
 
 use Beffroi\Xml\Enc\Exception\AlgorithmUnavailable;
+use Beffroi\Xml\Enc\Exception\EncryptionFailed;
 use Beffroi\Xml\Enc\Exception\InvalidKey;
 use Beffroi\Xml\Enc\OaepHash;
 use Beffroi\Xml\Enc\PeerKey;
 use Beffroi\Xml\Enc\PrivateDecryptionKey;
 use Beffroi\Xml\Tests\Enc\Support\Fixtures;
+use function ini_get;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use function preg_replace;
+use SensitiveParameterValue;
 use function str_repeat;
 use function strlen;
 
@@ -208,6 +211,47 @@ final class PeerKeyTest extends TestCase
         yield 'a certificate' => [Fixtures::bytes('keys/test-signing-certificate.pem')];
         yield 'a file:// path' => ['file://' . Fixtures::path('keys/test-signing-public-key.pem')];
         yield 'two public keys' => [$publicKey . $publicKey];
+    }
+
+    /**
+     * E-12: the session key given to wrap() stays out of the trace of its failure, a key too long for OAEP.
+     */
+    #[Test]
+    public function itKeepsTheSessionKeyOutOfTheTrace(): void
+    {
+        // Given
+        if (ini_get('zend.exception_ignore_args') === '1') {
+            static::markTestSkipped('This build leaves the arguments out of every trace.');
+        }
+        $peer = PeerKey::fromCertificatePem(Fixtures::bytes('keys/test-signing-certificate.pem'));
+
+        // When
+        try {
+            $peer->wrap(str_repeat('k', 232), OaepHash::Sha1);
+            static::fail('A key too long for OAEP does not wrap.');
+        } catch (EncryptionFailed $failure) {
+            // Then
+            static::assertInstanceOf(SensitiveParameterValue::class, $failure->getTrace()[0]['args'][0] ?? null);
+        }
+    }
+
+    /**
+     * §9.2 row 32, E-11: a certificate of 1024 bits, then an EC one.
+     */
+    #[Test]
+    #[TestWith(['keys/weak-rsa-1024-certificate.pem'], 'RSA-1024')]
+    #[TestWith(['keys/ec-p256-certificate.pem'], 'EC P-256')]
+    public function itRefusesAWeakOrNonRsaCertificate(string $file): void
+    {
+        // Given
+        $pem = Fixtures::bytes($file);
+
+        // Then
+        $this->expectException(InvalidKey::class);
+        $this->expectExceptionMessageIs('A peer key is RSA of at least 2048 bits (E-11).');
+
+        // When
+        PeerKey::fromCertificatePem($pem);
     }
 
     /**
