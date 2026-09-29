@@ -15,6 +15,7 @@ use Beffroi\Xml\Tests\Enc\Support\Loaded;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
+use function openssl_error_string;
 use function str_repeat;
 use function strlen;
 
@@ -85,6 +86,28 @@ final class PrivateDecryptionKeyTest extends TestCase
 
         // When / Then
         static::assertNull($this->key()->unwrap($data->key->cipherValue, OaepHash::Sha1));
+    }
+
+    /**
+     * §9.2 row 39, E-3: a wrapped key that does not unwrap leaves nothing in OpenSSL's error queue, which would say
+     * which step failed to whoever reads it.
+     */
+    #[Test]
+    #[TestWith(['hostile/key-wrapped-under-pkcs1-v1-5-refused.xml'], 'PKCS#1 v1.5 padding')]
+    #[TestWith(['hostile/wrapped-key-altered-refused.xml'], 'one byte altered')]
+    public function itLeavesNothingInOpensslsErrorQueue(string $fixture): void
+    {
+        // Given
+        $document = Loaded::fixture($fixture);
+        $data = EncryptedData::of(Encrypted::dataOf($document));
+        $key = $this->key();
+
+        // When
+        $sessionKey = $key->unwrap($data->key->cipherValue, OaepHash::Sha1);
+
+        // Then
+        static::assertNull($sessionKey);
+        static::assertFalse(openssl_error_string());
     }
 
     #[Test]
