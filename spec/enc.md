@@ -74,6 +74,7 @@ Each invariant is code, never a constructor option or a flag, has at least one t
 - **E-11. RSA of at least 2048 bits.** A decryption key or a peer key that is not RSA, or whose modulus is shorter than 2048 bits, is refused when the key object is built. Weak keys.
 - **E-12. Refusals name the rule, never the input; the failure names nothing.** A refusal of the reading model says which invariant refused and never carries the bytes, an algorithm string, a key or a certificate; `DecryptionFailed` says only that the data could not be decrypted.
 - **E-13. Bounded.** The text of a `CipherValue`, the decoded length of an `EncryptedKey`'s cipher value and the plaintext, bounded by the constants of section 7 and by `Core`. Denial of service.
+- **E-14. The certificate hint is a certificate.** The `$certificatePem` a consumer gives `Encryptor::encrypt()` is exactly one PEM block of type `CERTIFICATE`, whose content is strict base64, with nothing around it but whitespace; a private key, a bundle holding a key and a certificate, a chain, or any other text is refused with `InvalidKey` before anything is canonicalized, and `X509Certificate` carries the base64 of the decoded certificate. The parameter is a `SensitiveParameter`, so that a key passed by mistake stays out of the traces. A private key sent to the peer; the twin of `Dsig`'s D-17.
 
 ## 5. Public API
 
@@ -258,7 +259,8 @@ final readonly class Encryptor
      * exclusive canonical form with comments of $element under a fresh session key and IV, the key under RSA-OAEP
      * to $peer. The consumer puts it where its protocol says and removes the plaintext element itself.
      *
-     * @param ?string $certificatePem when given, the KeyInfo of the EncryptedKey carries it, for peers that want the hint
+     * @param ?string $certificatePem when given, one PEM certificate (E-14), carried by the KeyInfo of the EncryptedKey for peers that want the hint
+     * @throws InvalidKey when $certificatePem is not exactly one certificate (E-14)
      * @throws AlgorithmUnavailable a hash this build cannot wrap under
      * @throws \InvalidArgumentException when $element is not connected to its document, or its default namespace is undeclared (core.md 6.3)
      * @throws EncryptionFailed when a primitive fails: never input
@@ -269,7 +271,7 @@ final readonly class Encryptor
         PeerKey $peer,
         ContentAlgorithm $algorithm = ContentAlgorithm::Aes256Gcm,
         KeyTransport $transport = new KeyTransport(OaepHash::Sha1),
-        ?string $certificatePem = null,
+        #[\SensitiveParameter] ?string $certificatePem = null,
     ): \Dom\Element;
 }
 ```
@@ -404,6 +406,7 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | The `CipherValue` of an `EncryptedKey` of 4 097 bytes of text | `LimitExceeded` (E-13), before anything is decoded |
 | A decryption key given as a `file://` path to a key file | `InvalidKey` (E-11), nothing read from the disk |
 | OpenSSL's error queue after a `DecryptionFailed` whose unwrap failed | empty, as after a failed tag (E-3) |
+| `encrypt()` with a private key, a key and a certificate in either order, two certificates, text after the certificate, no content or content that is not base64, as `$certificatePem` | `InvalidKey` (E-14), before anything is canonicalized |
 
 ### 9.3 Behaviour corpus
 
@@ -415,7 +418,7 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | `encrypt()` under `rsa-oaep` with SHA-256, then decrypted | decrypts on PHP 8.5; `AlgorithmUnavailable` on 8.4 before anything is encrypted |
 | `encrypt()` twice on the same element | two different cipher values and two different wrapped keys (E-8) |
 | `encrypt()` returns an element of the given document, unattached | `ownerDocument` is the same, `parentNode` is null; appended under an `EncryptedAssertion` the consumer built, the response serializes with `Core` and loads again |
-| `encrypt()` with a certificate | the key's `KeyInfo/X509Data/X509Certificate` holds its base64; without, no `KeyInfo` under the key |
+| `encrypt()` with a certificate | the key's `KeyInfo/X509Data/X509Certificate` holds its base64, on one line; without, no `KeyInfo` under the key |
 | `encrypt()` of an element with comments and inherited declarations | the plaintext is the exclusive canonical form with comments, the declarations rendered on the element (E-9) |
 | A signed assertion (the signer of `Dsig`) encrypted, decrypted, verified by `Dsig` | the stack's round trip is green |
 | xmlsec1 decrypts what `encrypt()` produced | the command recorded in the fixture README, for `aes256-gcm` and `aes128-gcm` |
