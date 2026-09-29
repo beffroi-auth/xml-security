@@ -171,7 +171,7 @@ final class KeyTransportTest extends TestCase
         $oaepParams = '<xenc:OAEPparams>AAAA</xenc:OAEPparams>';
 
         yield 'row 3, rsa-1_5' => [Names::XMLENC . 'rsa-1_5', '', UnknownKeyTransport::class, $notOaep];
-        yield 'row 3, rsa-1_5 next to a valid content method changes nothing' => [
+        yield 'row 3, rsa-1_5 with a DigestMethod of SHA-1 changes nothing' => [
             Names::XMLENC . 'rsa-1_5',
             self::digest(self::SHA1),
             UnknownKeyTransport::class,
