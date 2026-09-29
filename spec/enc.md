@@ -71,7 +71,7 @@ Each invariant is code, never a constructor option or a flag, has at least one t
 - **E-8. Fresh randomness.** `Encryptor::encrypt()` draws a new session key and a new IV from `random_bytes()` for every call, never reusing either. Nonce reuse.
 - **E-9. The plaintext is a self-contained element.** The encryptor encrypts the exclusive canonical form with comments of the element, which renders every namespace declaration the element and its subtree use; the decryptor loads what it gets, and an element that does not parse on its own is refused by `Core`. Context loss.
 - **E-10. Four OpenSSL calls, one file each.** `openssl_decrypt()` is called once, in `Decryptor`; `openssl_encrypt()` once, in `Encryptor`; `openssl_private_decrypt()` once, in `PrivateDecryptionKey`; `openssl_public_encrypt()` once, in `PeerKey`. `openssl_pkey_get_private()` and `openssl_pkey_get_public()` are called in the two key classes only. The rules of section 8 enforce it.
-- **E-11. RSA of at least 2048 bits.** A decryption key or a peer key that is not RSA, or whose modulus is shorter than 2048 bits, is refused when the key object is built. Weak keys.
+- **E-11. RSA of at least 2048 bits.** A decryption key or a peer key that is not RSA, or whose modulus is shorter than 2048 bits, is refused when the key object is built. A peer key is read from exactly one PEM block in memory, of the type its factory names (`CERTIFICATE` or `PUBLIC KEY`), whose content is strict base64 with nothing around it but whitespace, or from the base64 of a certificate: a path OpenSSL would open (`file://`), text around the block, a bundle or a chain is refused before OpenSSL reads anything, as `Dsig`'s D-16 says of a verification key. Weak keys, and a key read from anywhere but the string the consumer gave.
 - **E-12. Refusals name the rule, never the input; the failure names nothing.** A refusal of the reading model says which invariant refused and never carries the bytes, an algorithm string, a key or a certificate; `DecryptionFailed` says only that the data could not be decrypted.
 - **E-13. Bounded.** The text of a `CipherValue`, the decoded length of an `EncryptedKey`'s cipher value and the plaintext, bounded by the constants of section 7 and by `Core`. Denial of service.
 - **E-14. The certificate hint is a certificate.** The `$certificatePem` a consumer gives `Encryptor::encrypt()` is exactly one PEM block of type `CERTIFICATE`, whose content is strict base64, with nothing around it but whitespace; a private key, a bundle holding a key and a certificate, a chain, or any other text is refused with `InvalidKey` before anything is canonicalized, and `X509Certificate` carries the base64 of the decoded certificate. The parameter is a `SensitiveParameter`, so that a key passed by mistake stays out of the traces. A private key sent to the peer; the twin of `Dsig`'s D-17.
@@ -162,11 +162,11 @@ final readonly class PrivateDecryptionKey implements DecryptionKeyInterface
 
 final readonly class PeerKey
 {
-    /** @throws InvalidKey when the PEM holds no certificate, or a key that is not RSA of at least 2048 bits */
+    /** @throws InvalidKey unless $pem is exactly one PEM block of type CERTIFICATE (E-11), or when its key is not RSA of at least 2048 bits */
     public static function fromCertificatePem(string $pem): self;
     /** @throws InvalidKey the content of an X509Certificate element, base64 of the DER, whitespace tolerated */
     public static function fromCertificateBase64(string $base64): self;
-    /** @throws InvalidKey a PEM public key */
+    /** @throws InvalidKey unless $pem is exactly one PEM block of type PUBLIC KEY (E-11), or when its key is not RSA of at least 2048 bits */
     public static function fromPublicKeyPem(string $pem): self;
     /**
      * @internal for Encryptor only: the session key wrapped under RSA-OAEP with $hash for the mask and for MGF1, the one
@@ -175,11 +175,11 @@ final readonly class PeerKey
      * @throws AlgorithmUnavailable when this build cannot wrap under $hash
      * @throws EncryptionFailed when the primitive fails: never input
      */
-    public function wrap(string $sessionKey, OaepHash $hash): string;
+    public function wrap(#[\SensitiveParameter] string $sessionKey, OaepHash $hash): string;
 }
 ```
 
-`DecryptionKeyInterface` is the one port of the namespace: a key management service unwraps without ever handing its key over, and answers `null` rather than a reason, so that the port itself cannot become the oracle. `PrivateDecryptionKey` is the implementation on a PEM in memory, and reads that PEM and nothing else: a string that starts with `file://`, which `openssl_pkey_get_private()` opens as a path, is refused, and a `null` passphrase is passed as the empty one, since OpenSSL asks the terminal for the passphrase of an encrypted PEM given none (measured, dsig.md section 13). `PeerKey` is the encryption certificate of the peer's metadata, read the way `Dsig`'s `VerificationKey` reads a signing certificate: `openssl_pkey_get_public()` on the PEM armour, no DER parser; whether the certificate is expired or trusted is the metadata layer's business.
+`DecryptionKeyInterface` is the one port of the namespace: a key management service unwraps without ever handing its key over, and answers `null` rather than a reason, so that the port itself cannot become the oracle. `PrivateDecryptionKey` is the implementation on a PEM in memory, and reads that PEM and nothing else: a string that starts with `file://`, which `openssl_pkey_get_private()` opens as a path, is refused, and a `null` passphrase is passed as the empty one, since OpenSSL asks the terminal for the passphrase of an encrypted PEM given none (measured, dsig.md section 13). `PeerKey` is the encryption certificate of the peer's metadata, read the way `Dsig`'s `VerificationKey` reads a signing certificate: exactly one PEM block, written again from its decoded bytes before `openssl_pkey_get_public()` sees it, no DER parser; whether the certificate is expired or trusted is the metadata layer's business.
 
 ### 5.3 The reading model
 
@@ -407,6 +407,7 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | A decryption key given as a `file://` path to a key file | `InvalidKey` (E-11), nothing read from the disk |
 | OpenSSL's error queue after a `DecryptionFailed` whose unwrap failed | empty, as after a failed tag (E-3) |
 | `encrypt()` with a private key, a key and a certificate in either order, two certificates, text after the certificate, no content or content that is not base64, as `$certificatePem` | `InvalidKey` (E-14), before anything is canonicalized |
+| A peer key given as a `file://` path, with text before the armour, as two certificates, or as a public key to `fromCertificatePem()` | `InvalidKey` (E-11), nothing handed to OpenSSL |
 
 ### 9.3 Behaviour corpus
 
