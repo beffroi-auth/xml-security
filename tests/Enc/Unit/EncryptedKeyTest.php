@@ -20,8 +20,10 @@ use Beffroi\Xml\Tests\Enc\Support\Fixtures;
 use Beffroi\Xml\Tests\Enc\Support\Loaded;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use function preg_replace;
+use function str_repeat;
 use function strlen;
 use Throwable;
 
@@ -237,6 +239,40 @@ final class EncryptedKeyTest extends TestCase
         // Then
         $this->expectException(MalformedEncryption::class);
         $this->expectExceptionMessageIs('The element is not an xenc:EncryptedKey (E-5).');
+
+        // When
+        EncryptedKey::of($element);
+    }
+
+    /**
+     * §9.2 row 37, E-13: the text of the key's CipherValue is bounded at 4 096 bytes before anything is decoded; at
+     * the bound it is decoded, and refused by the length of what it decodes to.
+     */
+    #[Test]
+    #[TestWith(
+        [4097, 'A CipherValue is longer than maxEncryptedKeyTextBytes, 4096 bytes of text (E-13).'],
+        'over the bound',
+    )]
+    #[TestWith(
+        [4096, 'The cipher value of an EncryptedKey is not between 256 and maxEncryptedKeyBytes, 1024 bytes (E-13).'],
+        'at the bound',
+    )]
+    public function itBoundsTheTextOfTheKeyBeforeDecodingIt(int $length, string $message): void
+    {
+        // Given
+        $bytes = preg_replace(
+            '~(<xenc:EncryptedKey\b.*?<xenc:CipherValue>)[^<]*(</xenc:CipherValue>)~s',
+            '${1}' . str_repeat('A', $length) . '${2}',
+            Fixtures::bytes('vectors/response-encrypted-assertion-aes256-gcm.xml'),
+            1,
+        );
+        static::assertNotNull($bytes);
+        $document = Loaded::document($bytes);
+        $element = Encrypted::keyOf($document);
+
+        // Then
+        $this->expectException(LimitExceeded::class);
+        $this->expectExceptionMessageIs($message);
 
         // When
         EncryptedKey::of($element);
