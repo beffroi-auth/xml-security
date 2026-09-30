@@ -340,6 +340,8 @@ Steps 3 and 4 refuse before any cryptography; step 6 runs before step 8 so that 
 
 `saml2-model` knows which element is signed and where SAML puts the `Signature` (after `Issuer` in an assertion or a protocol message, first in an entity descriptor: SAML Core §5.4.1); `Dsig` knows neither. `saml2-model` reads the element it verified from `Verified::$document` only, and passes to `verify()` the element it found in the received document and the keys of the peer's metadata, never a key from the message. Whether a response, an assertion or both must be signed, and what a missing signature means, is SAML's business and is decided there.
 
+A QName in an attribute value, the `xs:string` of `xsi:type="xs:string"` in an `AttributeValue`, is not resolved in `Verified::$document`: exclusive canonicalization renders the declarations the names of elements and attributes use, never those a value names, so `xmlns:xs` is absent from the bytes the digest covered unless the signer put the prefix on its `PrefixList`, which SimpleSAMLphp does not (measured on its real document, section 9.4). The binding of such a prefix is not signed in the first place, so it must not be trusted: `saml2-model` reads such a value as an opaque string, `xs:string` compared as text, and never resolves its prefix.
+
 ## 7. Limits
 
 Constants of the namespace, never options: a consumer who needs more has a case this document does not know, and it changes here first. The bounds of `Core` apply as well, to the document and to the canonical form the verifier loads again (6.1 step 9).
@@ -450,6 +452,7 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | A `SignatureRefused` message | ends with the rule in parentheses, holds no URI, no ID and no base64 |
 | `sign()` with a private key, a key and a certificate in either order, two certificates, text after the certificate, no content or content that is not base64, as `$certificatePem` | `InvalidKey` (D-17), before anything is serialized |
 | `sign()` on an element that already holds a `Signature` | `InvalidArgumentException` (D-1), nothing signed |
+| `verify()` of SimpleSAMLphp's assertion, whose `AttributeValue` says `xsi:type="xs:string"` | in `Verified::$document`, the value reads `xs:string` and the prefix `xs` resolves to nothing (6.3) |
 
 ### 9.4 Real documents
 
