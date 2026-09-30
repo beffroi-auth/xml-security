@@ -7,7 +7,6 @@ namespace Beffroi\Xml\Tests\Dsig\Unit;
 use Throwable;
 use Beffroi\Xml\Core\Exception\DoctypeRefused;
 use Beffroi\Xml\Core\Exception\DuplicateId;
-use Beffroi\Xml\Core\Exception\MissingChild;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Dsig\Exception\DigestMismatch;
 use Beffroi\Xml\Dsig\Exception\MalformedSignature;
@@ -178,8 +177,8 @@ final class AdversarialTest extends TestCase
         yield 'a Signature in a namespace that is almost the right one' => [
             'adversarial-signature-in-other-namespace-refused.xml',
             $id,
-            MissingChild::class,
-            'The element has no child named {http://www.w3.org/2000/09/xmldsig#}Signature (section 6.4).',
+            MalformedSignature::class,
+            'The claimed element holds exactly one ds:Signature, a direct child (D-1).',
         ];
         yield 'the enveloped transform URI in another case' => [
             'adversarial-enveloped-uri-uppercase-refused.xml',

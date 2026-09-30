@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Dsig;
 
+use Beffroi\Xml\Core\Exception\AmbiguousChild;
 use Beffroi\Xml\Core\Exception\ForeignNode;
+use Beffroi\Xml\Core\Exception\MissingChild;
 use Beffroi\Xml\Core\Exception\RefusedXml;
 use Beffroi\Xml\Core\CanonicalizationMethod;
 use Beffroi\Xml\Core\Canonicalizer;
@@ -13,6 +15,7 @@ use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Dsig\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Dsig\Exception\DigestMismatch;
+use Beffroi\Xml\Dsig\Exception\MalformedSignature;
 use Beffroi\Xml\Dsig\Exception\SignatureMismatch;
 use Beffroi\Xml\Dsig\Exception\WrongReference;
 use Beffroi\Xml\Dsig\Internal\Names;
@@ -44,12 +47,16 @@ final readonly class Verifier
      *
      * @throws Exception\SignatureRefused one of its subclasses, naming the rule (D-13)
      * @throws ForeignNode when $signed is not of a document of the brick
-     * @throws RefusedXml what Core refuses of the Signature child (D-1) and of the reload (D-10)
+     * @throws RefusedXml what Core refuses of the reload (D-10)
      */
     public function verify(Element $signed, VerificationKeys $keys): Verified
     {
         $document = Document::owning($signed);
-        $element = Children::one($signed, Names::dsig('Signature'));
+        try {
+            $element = Children::one($signed, Names::dsig('Signature'));
+        } catch (MissingChild|AmbiguousChild) {
+            throw new MalformedSignature('The claimed element holds exactly one ds:Signature, a direct child (D-1).');
+        }
         $signature = Signature::of($element);
         $algorithm = $signature->signedInfo->signatureMethod;
         if (! $algorithm->isAvailable()) {

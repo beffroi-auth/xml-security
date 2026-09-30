@@ -6,14 +6,13 @@ namespace Beffroi\Xml\Tests\Dsig\Unit;
 
 use Throwable;
 use Beffroi\Xml\Core\Children;
-use Beffroi\Xml\Core\Exception\AmbiguousChild;
 use Beffroi\Xml\Core\Exception\DuplicateId;
 use Beffroi\Xml\Core\Exception\ForeignNode;
-use Beffroi\Xml\Core\Exception\MissingChild;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Dsig\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Dsig\Exception\DigestMismatch;
+use Beffroi\Xml\Dsig\Exception\MalformedSignature;
 use Beffroi\Xml\Dsig\Exception\SignatureMismatch;
 use Beffroi\Xml\Dsig\Exception\WrongReference;
 use Beffroi\Xml\Dsig\SignatureAlgorithm;
@@ -333,7 +332,7 @@ final class VerifierTest extends TestCase
     public static function provideRefusedVariants(): iterable
     {
         $mismatch = 'No trusted key verifies the signature over SignedInfo (D-7, D-8).';
-        $missing = 'The element has no child named {http://www.w3.org/2000/09/xmldsig#}Signature (section 6.4).';
+        $d1 = 'The claimed element holds exactly one ds:Signature, a direct child (D-1).';
 
         yield 'row 2, the signed assertion wrapped, the unsigned one claimed with the copied Signature' => [
             'xsw-assertion-in-extensions-new-id-refused.xml',
@@ -344,20 +343,20 @@ final class VerifierTest extends TestCase
         yield 'row 4, the Signature moved to the response' => [
             'xsw-signature-moved-to-response-refused.xml',
             '_assertion-d4e5f6',
-            MissingChild::class,
-            $missing,
+            MalformedSignature::class,
+            $d1,
         ];
         yield 'row 5, the Signature a grandchild' => [
             'xsw-signature-grandchild-refused.xml',
             '_assertion-d4e5f6',
-            MissingChild::class,
-            $missing,
+            MalformedSignature::class,
+            $d1,
         ];
         yield 'row 6, two Signature children' => [
             'xsw-two-signatures-refused.xml',
             '_assertion-d4e5f6',
-            AmbiguousChild::class,
-            'The element has more than one child named {http://www.w3.org/2000/09/xmldsig#}Signature (section 6.4).',
+            MalformedSignature::class,
+            $d1,
         ];
         yield 'row 14, a DigestValue altered' => [
             'digest-value-altered-refused.xml',
