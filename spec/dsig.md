@@ -310,7 +310,7 @@ A `SignatureRefused` is input the namespace refuses; it extends `Core`'s `Refuse
 `Verifier::verify($signed, $keys)`:
 
 1. **Ownership.** `Document::owning($signed)` (`ForeignNode` otherwise): the document is one `Core` loaded, so every ID is unique in it and every declaration is an attribute.
-2. **The Signature.** `Children::one($signed, {http://www.w3.org/2000/09/xmldsig#}Signature)`: a direct child, one, or a refusal (D-1, through `Core`'s `MissingChild` and `AmbiguousChild`, which are `RefusedXml`).
+2. **The Signature.** `Children::one($signed, {http://www.w3.org/2000/09/xmldsig#}Signature)`: a direct child, one, or `MalformedSignature` (D-1). `Core`'s `MissingChild` and `AmbiguousChild` are caught and refused under the rule of the namespace, so that a consumer who catches `SignatureRefused` catches a missing or a doubled signature too.
 3. **The reading model.** `Signature::of()` reads the structure of 5.3 with `Children::one()`, `Children::optional()`, `Attributes::required()` and `Text::of()`, in this order and refusing at the first fault: the element children of `Signature` are `SignedInfo`, `SignatureValue` and optionally `KeyInfo`, nothing else (D-9); `SignedInfo` has exactly `CanonicalizationMethod`, `SignatureMethod` and one `Reference`; the `Algorithm` of `CanonicalizationMethod` goes through `CanonicalizationMethod::fromUri()` of `Core` and must be exclusive (D-4), its optional `InclusiveNamespaces` child gives a `PrefixList` bounded by section 7; the `Algorithm` of `SignatureMethod` goes through `SignatureAlgorithm::fromUri()` (D-5), and a `HMACOutputLength` child is a refusal; the `Reference` has no `Type`, a `URI` that starts with `#` and continues with an NCName (D-2), exactly `Transforms`, `DigestMethod` and `DigestValue`; `Transforms` has exactly two `Transform`, the first `http://www.w3.org/2000/09/xmldsig#enveloped-signature` with no child, the second an exclusive canonicalization with an optional `InclusiveNamespaces` (D-3); `DigestMethod` goes through `DigestAlgorithm::fromUri()`; `DigestValue` and `SignatureValue` are decoded (D-8) and their lengths checked (D-14). `KeyInfo`, when present, is not read: not its children, not its text.
 4. **Availability.** A PSS method on a build where `isAvailable()` is false, without PHP 8.5 and OpenSSL 3.1, is `AlgorithmUnavailable`, before any key is touched.
 5. **SignedInfo.** `Canonicalizer::canonicalize($signedInfo->element, $signedInfo->canonicalizationMethod, $signedInfo->inclusiveNamespaces)`: a few hundred bytes, whatever the document.
@@ -388,9 +388,9 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | The signed assertion moved into `samlp:Extensions`, an unsigned assertion in its place with the original's ID (the 2012 wrapping, variant 1) | `DuplicateId` at load, from `Core` I-8 |
 | The signed assertion moved into `samlp:Extensions`, the unsigned one given a new ID, the reference untouched | `WrongReference`: the reference names the wrapped element, not the claimed one |
 | The signed assertion moved into a `ds:Object` inside the `Signature` | `MalformedSignature`: `Object` is refused (D-9) |
-| The `Signature` moved from the assertion to the response, reference untouched | `MissingChild` on the assertion, from `Core` |
-| The `Signature` a grandchild of the claimed element | `MissingChild` from `Core`: never searched (D-1) |
-| Two `Signature` children | `AmbiguousChild` from `Core` (D-1) |
+| The `Signature` moved from the assertion to the response, reference untouched | `MalformedSignature` on the assertion (D-1) |
+| The `Signature` a grandchild of the claimed element | `MalformedSignature`: never searched (D-1) |
+| Two `Signature` children | `MalformedSignature` (D-1) |
 | A reference with an empty URI | `MalformedSignature` (D-2) |
 | A reference `#xpointer(/)` | `MalformedSignature` (D-2) |
 | A reference to an external URI | `MalformedSignature` (D-2) |
