@@ -227,6 +227,16 @@ final readonly class Verifier
      * @throws ForeignNode when $signed is not of a document of the brick
      */
     public function verify(\Dom\Element $signed, VerificationKeys $keys): Verified;
+
+    /**
+     * The trusted key under which $signature is a signature of $bytes, for a signature that is not XML (6.4): the one
+     * over the query string of the HTTP-Redirect binding, which saml2-bindings builds in the exact order of its
+     * parameters.
+     *
+     * @param string $signature the signature, decoded
+     * @throws AlgorithmUnavailable, LimitExceeded, SignatureMismatch
+     */
+    public function verifyDetached(string $bytes, string $signature, SignatureAlgorithm $algorithm, VerificationKeys $keys): VerificationKey;
 }
 
 final readonly class Verified
@@ -342,6 +352,16 @@ Steps 3 and 4 refuse before any cryptography; step 6 runs before step 8 so that 
 
 A QName in an attribute value, the `xs:string` of `xsi:type="xs:string"` in an `AttributeValue`, is not resolved in `Verified::$document`: exclusive canonicalization renders the declarations the names of elements and attributes use, never those a value names, so `xmlns:xs` is absent from the bytes the digest covered unless the signer put the prefix on its `PrefixList`, which SimpleSAMLphp does not (measured on its real document, section 9.4). The binding of such a prefix is not signed in the first place, so it must not be trusted: `saml2-model` reads such a value as an opaque string, `xs:string` compared as text, and never resolves its prefix.
 
+### 6.4 Detached verification, in order
+
+`Verifier::verifyDetached($bytes, $signature, $algorithm, $keys)`, for the one signature of the stack that is not XML Signature: the HTTP-Redirect binding signs the bytes of its query string, `SAMLRequest` or `SAMLResponse`, `RelayState` and `SigAlg`, in that order (SAML Bindings §3.4.4.1). `saml2-bindings` builds those bytes, the order being the whole of CVE-2025-27773, and reads `SigAlg` with `SignatureAlgorithm::fromUri()`, the closed list of D-5; it signs them through `SigningKeyInterface::sign()`.
+
+1. **Availability.** A PSS method on a build where `isAvailable()` is false is `AlgorithmUnavailable`, before any key is touched.
+2. **The signature's length.** Between 256 and `maxSignatureValueBytes` bytes, or `LimitExceeded` (D-14), before any key is touched.
+3. **The signature.** Each key of `$keys` in order, `openssl_verify()` compared to `1` as in 6.1 step 6 (D-8): the first key that verifies is returned; anything else on every key is `SignatureMismatch`, and nothing about which key came close is kept (D-13).
+
+The keys are those of the peer's metadata, as for `verify()` (D-7); the one `openssl_verify()` of the namespace stays in `Verifier` (D-15).
+
 ## 7. Limits
 
 Constants of the namespace, never options: a consumer who needs more has a case this document does not know, and it changes here first. The bounds of `Core` apply as well, to the document and to the canonical form the verifier loads again (6.1 step 9).
@@ -453,6 +473,8 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | `sign()` with a private key, a key and a certificate in either order, two certificates, text after the certificate, no content or content that is not base64, as `$certificatePem` | `InvalidKey` (D-17), before anything is serialized |
 | `sign()` on an element that already holds a `Signature` | `InvalidArgumentException` (D-1), nothing signed |
 | `verify()` of SimpleSAMLphp's assertion, whose `AttributeValue` says `xsi:type="xs:string"` | in `Verified::$document`, the value reads `xs:string` and the prefix `xs` resolves to nothing (6.3) |
+| `verifyDetached()` of bytes `PrivateKey::sign()` signed, with each scheme, the right key second | the key that verified |
+| `verifyDetached()` of other bytes, of a stranger's signature, of a signature of 255 or 1 025 bytes, of PSS where it is unavailable | `SignatureMismatch`, `SignatureMismatch`, `LimitExceeded` (D-14), `AlgorithmUnavailable` |
 
 ### 9.4 Real documents
 
@@ -500,7 +522,7 @@ The job Oracle of the CI signs in the phpqa image of PHP 8.5 and verifies with x
 - Anything XML Signature allows that SAML never uses: detached signatures, references to external resources, `Manifest`, `Object`, `SignatureProperties`, XPath and XSLT transforms, the base64 transform, Canonical XML 1.1 and inclusive canonicalization, DSA, ECDSA, HMAC, SHA-1, XML Signature 1.1 `KeyInfo` extensions, `RetrievalMethod`.
 - Reading `KeyInfo` at all: a consumer who wants the hint reads the element with `Core`, and trusts nothing it finds there.
 - Certificate validity, chains, revocation, the choice of the trusted keys: the metadata layer.
-- The detached signature of the HTTP-Redirect binding: `saml2-bindings`.
+- The bytes of the HTTP-Redirect binding and the order of their parameters: `saml2-bindings`, which verifies them with `Verifier::verifyDetached()` (6.4) and signs them through `SigningKeyInterface`.
 - A document apex for the empty URI reference of XAdES (`Core` #14).
 - ECDSA, until the interoperability targets sign with it (decision 0013).
 
