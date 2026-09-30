@@ -27,6 +27,8 @@ use function strlen;
  */
 final class RealDocumentsTest extends TestCase
 {
+    private const string XSI = 'http://www.w3.org/2001/XMLSchema-instance';
+
     private const string DSIG = 'http://www.w3.org/2000/09/xmldsig#';
 
     /**
@@ -94,6 +96,36 @@ final class RealDocumentsTest extends TestCase
         static::assertSame('Assertion', $verified->document->root()->localName);
         static::assertSame(SignatureAlgorithm::RsaSha256, $verified->algorithm);
         static::assertStringContainsString('user-0001', $verified->canonical->bytes);
+    }
+
+    /**
+     * §9.3 row 20, section 6.3: the QName of an attribute value is not resolved in Verified::$document, whose bytes
+     * never declared its prefix; the value reads as the text SimpleSAMLphp wrote.
+     */
+    #[Test]
+    public function itLeavesTheQnameOfAnAttributeValueUnresolved(): void
+    {
+        // Given
+        $document = Loaded::fixture('real/simplesamlphp-saml2-4.20.3-response-signed-assertion-2026-09-27.xml');
+        $verifier = new Verifier(new Loader(Stack::idAttributes()));
+        $keys = new VerificationKeys([
+            VerificationKey::fromCertificatePem(Fixtures::bytes('keys/test-signing-certificate.pem')),
+        ]);
+
+        // When
+        $verified = $verifier->verify($document->elementById('_ssp-assertion-p1q2r3'), $keys);
+
+        // Then
+        $value = Children::one(
+            Children::one(
+                Children::one($verified->document->root(), new Name(Stack::SAML_ASSERTION, 'AttributeStatement')),
+                new Name(Stack::SAML_ASSERTION, 'Attribute'),
+            ),
+            new Name(Stack::SAML_ASSERTION, 'AttributeValue'),
+        );
+        static::assertSame('xs:string', $value->getAttributeNS(self::XSI, 'type'));
+        static::assertNull($value->lookupNamespaceURI('xs'));
+        static::assertSame(self::XSI, $value->lookupNamespaceURI('xsi'));
     }
 
     /**

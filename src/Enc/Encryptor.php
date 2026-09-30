@@ -10,7 +10,6 @@ use Beffroi\Xml\Core\Canonicalizer;
 use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Core\Exception\RefusedXml;
-use Beffroi\Xml\Core\IdAttributes;
 use Beffroi\Xml\Core\InclusiveNamespaces;
 use Beffroi\Xml\Core\Internal\Registry;
 use Beffroi\Xml\Core\Loader;
@@ -39,7 +38,12 @@ use SensitiveParameter;
  */
 final readonly class Encryptor
 {
+    /**
+     * @param Loader $loader the consumer's, with its ID attributes and limits: it loads the plaintext once before it is
+     *                       encrypted (E-9)
+     */
     public function __construct(
+        private Loader $loader,
         private Canonicalizer $canonicalizer = new Canonicalizer(),
     ) {
     }
@@ -86,7 +90,7 @@ final readonly class Encryptor
             $this->prefixesInScope($element),
         )->bytes;
         // what no parser accepts, a namespace name C14N() wrote raw among it, is refused here and not by the peer
-        new Loader(IdAttributes::none())->load($plaintext);
+        $this->loader->load($plaintext);
         $sessionKey = random_bytes($algorithm->keyBytes());
         $iv = random_bytes(ContentAlgorithm::IV_BYTES);
         $tag = '';

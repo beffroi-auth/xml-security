@@ -7,6 +7,7 @@ namespace Beffroi\Xml\Tests\Enc\Unit;
 use Beffroi\Xml\Core\CanonicalizationMethod;
 use Beffroi\Xml\Core\Canonicalizer;
 use Beffroi\Xml\Core\Children;
+use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Core\Serializer;
 use Beffroi\Xml\Enc\ContentAlgorithm;
@@ -74,7 +75,7 @@ final class EncryptorOracleTest extends TestCase
         $expected = new Canonicalizer()->canonicalize($root, CanonicalizationMethod::ExclusiveWithComments)->bytes;
 
         // When
-        $encrypted = new Encryptor()->encrypt(
+        $encrypted = new Encryptor(new Loader(Stack::idAttributes()))->encrypt(
             $assertion,
             PeerKey::fromCertificatePem(Fixtures::bytes('keys/test-signing-certificate.pem')),
             $algorithm,

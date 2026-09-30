@@ -6,16 +6,17 @@ namespace Beffroi\Xml\Tests\Dsig\Unit;
 
 use Throwable;
 use Beffroi\Xml\Core\Children;
-use Beffroi\Xml\Core\Exception\AmbiguousChild;
 use Beffroi\Xml\Core\Exception\DuplicateId;
 use Beffroi\Xml\Core\Exception\ForeignNode;
-use Beffroi\Xml\Core\Exception\MissingChild;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Dsig\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Dsig\Exception\DigestMismatch;
+use Beffroi\Xml\Dsig\Exception\LimitExceeded;
+use Beffroi\Xml\Dsig\Exception\MalformedSignature;
 use Beffroi\Xml\Dsig\Exception\SignatureMismatch;
 use Beffroi\Xml\Dsig\Exception\WrongReference;
+use Beffroi\Xml\Dsig\PrivateKey;
 use Beffroi\Xml\Dsig\SignatureAlgorithm;
 use Beffroi\Xml\Dsig\VerificationKey;
 use Beffroi\Xml\Dsig\VerificationKeys;
@@ -28,6 +29,7 @@ use function defined;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use function str_repeat;
 use function str_starts_with;
 
 /**
@@ -37,6 +39,11 @@ use function str_starts_with;
 final class VerifierTest extends TestCase
 {
     private const string DSIG = 'http://www.w3.org/2000/09/xmldsig#';
+
+    /**
+     * The bytes the HTTP-Redirect binding signs: SAMLRequest, RelayState and SigAlg, in that order.
+     */
+    private const string REDIRECT_QUERY = 'SAMLRequest=fZJNT8MwDIbv%2BRVR7m3SbhOIaJ2QEBISHIBx4BZrs&RelayState=%2Fhome&SigAlg=http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256';
 
     private Verifier $verifier;
 
@@ -333,7 +340,7 @@ final class VerifierTest extends TestCase
     public static function provideRefusedVariants(): iterable
     {
         $mismatch = 'No trusted key verifies the signature over SignedInfo (D-7, D-8).';
-        $missing = 'The element has no child named {http://www.w3.org/2000/09/xmldsig#}Signature (section 6.4).';
+        $d1 = 'The claimed element holds exactly one ds:Signature, a direct child (D-1).';
 
         yield 'row 2, the signed assertion wrapped, the unsigned one claimed with the copied Signature' => [
             'xsw-assertion-in-extensions-new-id-refused.xml',
@@ -344,20 +351,20 @@ final class VerifierTest extends TestCase
         yield 'row 4, the Signature moved to the response' => [
             'xsw-signature-moved-to-response-refused.xml',
             '_assertion-d4e5f6',
-            MissingChild::class,
-            $missing,
+            MalformedSignature::class,
+            $d1,
         ];
         yield 'row 5, the Signature a grandchild' => [
             'xsw-signature-grandchild-refused.xml',
             '_assertion-d4e5f6',
-            MissingChild::class,
-            $missing,
+            MalformedSignature::class,
+            $d1,
         ];
         yield 'row 6, two Signature children' => [
             'xsw-two-signatures-refused.xml',
             '_assertion-d4e5f6',
-            AmbiguousChild::class,
-            'The element has more than one child named {http://www.w3.org/2000/09/xmldsig#}Signature (section 6.4).',
+            MalformedSignature::class,
+            $d1,
         ];
         yield 'row 14, a DigestValue altered' => [
             'digest-value-altered-refused.xml',
@@ -452,6 +459,127 @@ final class VerifierTest extends TestCase
 
         // Then
         static::assertSame(SignatureAlgorithm::RsaPssSha256, $verified->algorithm);
+    }
+
+    /**
+     * §9.3 row 21, section 6.4: bytes signed by PrivateKey::sign(), as the HTTP-Redirect binding signs its query
+     * string, verify under each scheme the build offers; the key that verified comes back, the right one second.
+     */
+    #[Test]
+    #[DataProvider('provideDetachedSchemes')]
+    public function itVerifiesADetachedSignature(SignatureAlgorithm $algorithm): void
+    {
+        // Given
+        $bytes = self::REDIRECT_QUERY;
+        $signature = PrivateKey::fromPem(Fixtures::bytes('keys/test-signing-key.pem'))->sign($bytes, $algorithm);
+        $keys = new VerificationKeys([
+            $this->key('stranger-certificate.pem'),
+            $this->key('test-signing-certificate.pem'),
+        ]);
+
+        // When
+        $key = $this->verifier->verifyDetached($bytes, $signature, $algorithm, $keys);
+
+        // Then
+        static::assertSame($keys->keys[1], $key);
+    }
+
+    /**
+     * @return iterable<string, array{SignatureAlgorithm}>
+     */
+    public static function provideDetachedSchemes(): iterable
+    {
+        foreach (SignatureAlgorithm::cases() as $algorithm) {
+            if (! $algorithm->isAvailable()) {
+                continue;
+            }
+
+            yield $algorithm->name => [$algorithm];
+        }
+    }
+
+    /**
+     * §9.3 row 22, section 6.4, D-8, D-14: other bytes, a key the consumer does not trust, and a signature whose
+     * length is outside the bound, before any key is touched.
+     *
+     * @param class-string<Throwable> $exception
+     */
+    #[Test]
+    #[DataProvider('provideRefusedDetachedSignatures')]
+    public function itRefusesADetachedSignature(
+        string $bytes,
+        ?int $length,
+        string $trusted,
+        string $exception,
+        string $message,
+    ): void {
+        // Given
+        $signature = $length === null
+            ? PrivateKey::fromPem(Fixtures::bytes('keys/test-signing-key.pem'))->sign(
+                self::REDIRECT_QUERY,
+                SignatureAlgorithm::RsaSha256,
+            )
+            : str_repeat("\x01", $length);
+        $keys = new VerificationKeys([$this->key($trusted)]);
+
+        // Then
+        $this->expectException($exception);
+        $this->expectExceptionMessageIs($message);
+
+        // When
+        $this->verifier->verifyDetached($bytes, $signature, SignatureAlgorithm::RsaSha256, $keys);
+    }
+
+    /**
+     * @return iterable<string, array{string, ?int, string, class-string<Throwable>, string}>
+     */
+    public static function provideRefusedDetachedSignatures(): iterable
+    {
+        $mismatch = 'No trusted key verifies the detached signature (D-7, D-8).';
+        $bound = 'A signature is not between 256 and maxSignatureValueBytes, 1024 bytes (D-14).';
+        $test = 'test-signing-certificate.pem';
+
+        yield 'other bytes' => [self::REDIRECT_QUERY . '&x', null, $test, SignatureMismatch::class, $mismatch];
+        yield 'a key the consumer does not trust' => [
+            self::REDIRECT_QUERY,
+            null,
+            'stranger-certificate.pem',
+            SignatureMismatch::class,
+            $mismatch,
+        ];
+        yield 'at the bound, 1 024 bytes' => [self::REDIRECT_QUERY, 1024, $test, SignatureMismatch::class, $mismatch];
+        yield 'one byte under the floor, 255 bytes' => [self::REDIRECT_QUERY, 255, $test, LimitExceeded::class, $bound];
+        yield 'one byte over the bound, 1 025 bytes' => [
+            self::REDIRECT_QUERY,
+            1025,
+            $test,
+            LimitExceeded::class,
+            $bound,
+        ];
+    }
+
+    /**
+     * §9.3 row 22, section 13: a PSS scheme where the build cannot verify it is refused by name, before any key.
+     */
+    #[Test]
+    public function itRefusesADetachedPssSignatureWhereTheBuildCannotVerifyIt(): void
+    {
+        // Given
+        if (SignatureAlgorithm::RsaPssSha256->isAvailable()) {
+            static::markTestSkipped('RSASSA-PSS is available on this build; the refusal is the business of PHP 8.4 and of OpenSSL before 3.1.');
+        }
+
+        // Then
+        $this->expectException(AlgorithmUnavailable::class);
+        $this->expectExceptionMessageIs('This build cannot verify RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
+
+        // When
+        $this->verifier->verifyDetached(
+            self::REDIRECT_QUERY,
+            str_repeat("\x01", 256),
+            SignatureAlgorithm::RsaPssSha256,
+            $this->trusted,
+        );
     }
 
     private function key(string $file): VerificationKey

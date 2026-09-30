@@ -69,7 +69,7 @@ Each invariant is code, never a constructor option or a flag, has at least one t
 - **E-6. Keys from the consumer.** The decryption key is what the consumer passes, through a port a key management service implements without handing its key over; the `KeyInfo` of the `EncryptedKey`, the recipient's certificate hint, is never read. Key substitution.
 - **E-7. Strict decoding, bounded first.** The cipher values are decoded with `base64_decode($text, true)` after whitespace removal, and the text is bounded before decoding (section 7). Denial of service.
 - **E-8. Fresh randomness.** `Encryptor::encrypt()` draws a new session key and a new IV from `random_bytes()` for every call, never reusing either. Nonce reuse.
-- **E-9. The plaintext is a self-contained element.** The encryptor encrypts the exclusive canonical form with comments of the element, with every prefix in scope on its `PrefixList`: every namespace declaration in scope is rendered on the element, those a QName value such as `xsi:type="xs:string"` needs included, which exclusive canonicalization alone leaves out. The `xml:*` attributes an ancestor carries are not imported, so that the signature of a signed element still verifies once it is decrypted: a consumer who needs one puts it on the element. The plaintext is loaded once before it is encrypted, so that what no parser accepts is refused here rather than by the peer. The decryptor loads what it gets, and an element that does not parse on its own is refused by `Core`. Context loss.
+- **E-9. The plaintext is a self-contained element.** The encryptor encrypts the exclusive canonical form with comments of the element, with every prefix in scope on its `PrefixList`: every namespace declaration in scope is rendered on the element, those a QName value such as `xsi:type="xs:string"` needs included, which exclusive canonicalization alone leaves out. The `xml:*` attributes an ancestor carries are not imported, so that the signature of a signed element still verifies once it is decrypted: a consumer who needs one puts it on the element. The plaintext is loaded once before it is encrypted, by the consumer's `Loader` with its ID attributes and its limits, so that what no parser accepts is refused here rather than by the peer, and nothing the consumer's own loader accepts is refused. The decryptor loads what it gets, and an element that does not parse on its own is refused by `Core`. Context loss.
 - **E-10. Four OpenSSL calls, one file each.** `openssl_decrypt()` is called once, in `Decryptor`; `openssl_encrypt()` once, in `Encryptor`; `openssl_private_decrypt()` once, in `PrivateDecryptionKey`; `openssl_public_encrypt()` once, in `PeerKey`. `openssl_pkey_get_private()` and `openssl_pkey_get_public()` are called in the two key classes only. The rules of section 8 enforce it.
 - **E-11. RSA of at least 2048 bits.** A decryption key or a peer key that is not RSA, or whose modulus is shorter than 2048 bits, is refused when the key object is built. A peer key is read from exactly one PEM block in memory, of the type its factory names (`CERTIFICATE` or `PUBLIC KEY`), whose content is strict base64 with nothing around it but whitespace, or from the base64 of a certificate: a path OpenSSL would open (`file://`), text around the block, a bundle or a chain is refused before OpenSSL reads anything, as `Dsig`'s D-16 says of a verification key. Weak keys, and a key read from anywhere but the string the consumer gave.
 - **E-12. Refusals name the rule, never the input; the failure names nothing.** A refusal of the reading model says which invariant refused and never carries the bytes, an algorithm string, a key or a certificate; `DecryptionFailed` says only that the data could not be decrypted.
@@ -252,7 +252,8 @@ The consumer reads `$document->root()`, the decrypted element as `Core` loaded i
 ```php
 final readonly class Encryptor
 {
-    public function __construct(private Canonicalizer $canonicalizer = new Canonicalizer()) {}
+    /** @param Loader $loader the consumer's, with its ID attributes and limits: it loads the plaintext once before it is encrypted (E-9) */
+    public function __construct(private Loader $loader, private Canonicalizer $canonicalizer = new Canonicalizer()) {}
 
     /**
      * A new xenc:EncryptedData element, built in the document of $element and returned unattached, holding the
@@ -432,6 +433,7 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | An `EncryptionRefused` message | ends with the rule in parentheses, holds no URI, no base64 and no key |
 | `encrypt()` of an element whose value names a prefix declared on an ancestor, `xsi:type="xs:string"` | the plaintext declares `xs`; decrypted alone, the prefix resolves (E-9) |
 | `encrypt()` of a built element whose namespace name holds an ampersand, which `C14N()` writes raw | `Core`'s refusal of the plaintext, before anything is encrypted (E-9) |
+| `encrypt()` of an element of more than the default `maxBytes`, with a consumer's loader at the ceiling | encrypted: the plaintext is held to the consumer's limits (E-9) |
 
 ### 9.4 Real documents
 

@@ -13,6 +13,7 @@ use Beffroi\Xml\Core\DocumentFactory;
 use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Core\Exception\MalformedXml;
 use Beffroi\Xml\Core\InclusiveNamespaces;
+use Beffroi\Xml\Core\Limits;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Core\Name;
 use Beffroi\Xml\Core\Serializer;
@@ -49,6 +50,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use function preg_replace;
 use function str_ends_with;
+use function str_repeat;
 use function strlen;
 use function substr;
 
@@ -77,7 +79,7 @@ final class EncryptorTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->encryptor = new Encryptor();
+        $this->encryptor = new Encryptor(new Loader(Stack::idAttributes()));
         $this->decryptor = new Decryptor(new Loader(Stack::idAttributes()));
         $this->canonicalizer = new Canonicalizer();
         $this->peer = PeerKey::fromCertificatePem(Fixtures::bytes('keys/test-signing-certificate.pem'));
@@ -489,6 +491,28 @@ final class EncryptorTest extends TestCase
 
         // When
         $this->encryptor->encrypt($assertion, $this->peer);
+    }
+
+    /**
+     * §9.3 row 20, E-9: the plaintext is held to the consumer's limits, not to the defaults: an element of more than
+     * the default maxBytes of Core is encrypted with a loader at the ceiling.
+     */
+    #[Test]
+    public function itHoldsThePlaintextToTheConsumersLimits(): void
+    {
+        // Given
+        $document = Built::responseWithAssertion();
+        $assertion = Built::assertionOf($document);
+        $xml = $assertion->ownerDocument;
+        static::assertNotNull($xml);
+        $this->attributeValue($assertion)->appendChild($xml->createTextNode(str_repeat('a', 1_100_000)));
+        $ceiling = new Encryptor(new Loader(Stack::idAttributes(), new Limits(maxBytes: 8_388_608)));
+
+        // When
+        $encrypted = $ceiling->encrypt($assertion, $this->peer);
+
+        // Then
+        static::assertGreaterThan(1_100_000, strlen(EncryptedData::of($encrypted)->cipherValue));
     }
 
     /**

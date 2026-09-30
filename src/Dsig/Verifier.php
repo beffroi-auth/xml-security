@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Beffroi\Xml\Dsig;
 
+use Beffroi\Xml\Core\Exception\AmbiguousChild;
 use Beffroi\Xml\Core\Exception\ForeignNode;
+use Beffroi\Xml\Core\Exception\MissingChild;
 use Beffroi\Xml\Core\Exception\RefusedXml;
 use Beffroi\Xml\Core\CanonicalizationMethod;
 use Beffroi\Xml\Core\Canonicalizer;
@@ -13,6 +15,8 @@ use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\Loader;
 use Beffroi\Xml\Dsig\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Dsig\Exception\DigestMismatch;
+use Beffroi\Xml\Dsig\Exception\LimitExceeded;
+use Beffroi\Xml\Dsig\Exception\MalformedSignature;
 use Beffroi\Xml\Dsig\Exception\SignatureMismatch;
 use Beffroi\Xml\Dsig\Exception\WrongReference;
 use Beffroi\Xml\Dsig\Internal\Names;
@@ -20,6 +24,8 @@ use function constant;
 use Dom\Element;
 use function hash_equals;
 use function openssl_verify;
+use function sprintf;
+use function strlen;
 
 /**
  * Verification in the order of section 6.1: the Signature as the direct child of the claimed element (D-1), the
@@ -44,12 +50,16 @@ final readonly class Verifier
      *
      * @throws Exception\SignatureRefused one of its subclasses, naming the rule (D-13)
      * @throws ForeignNode when $signed is not of a document of the brick
-     * @throws RefusedXml what Core refuses of the Signature child (D-1) and of the reload (D-10)
+     * @throws RefusedXml what Core refuses of the reload (D-10)
      */
     public function verify(Element $signed, VerificationKeys $keys): Verified
     {
         $document = Document::owning($signed);
-        $element = Children::one($signed, Names::dsig('Signature'));
+        try {
+            $element = Children::one($signed, Names::dsig('Signature'));
+        } catch (MissingChild|AmbiguousChild) {
+            throw new MalformedSignature('The claimed element holds exactly one ds:Signature, a direct child (D-1).');
+        }
         $signature = Signature::of($element);
         $algorithm = $signature->signedInfo->signatureMethod;
         if (! $algorithm->isAvailable()) {
@@ -81,6 +91,47 @@ final readonly class Verifier
     }
 
     /**
+     * The trusted key under which $signature is a signature of $bytes, for the one signature of the stack that is not
+     * XML Signature (section 6.4): the query string of the HTTP-Redirect binding, which saml2-bindings builds in the
+     * exact order of its parameters. The rules are those of verify(): the closed list of schemes (D-5), the keys of
+     * the peer's metadata (D-7), openssl_verify() compared to 1 (D-8), the length bounded (D-14).
+     *
+     * @param string $signature the signature, decoded
+     *
+     * @throws AlgorithmUnavailable a PSS scheme on a build that cannot verify it
+     * @throws LimitExceeded when $signature is not between 256 and maxSignatureValueBytes bytes
+     * @throws SignatureMismatch when no trusted key verifies it
+     */
+    public function verifyDetached(
+        string $bytes,
+        string $signature,
+        SignatureAlgorithm $algorithm,
+        VerificationKeys $keys,
+    ): VerificationKey {
+        if (! $algorithm->isAvailable()) {
+            throw new AlgorithmUnavailable('This build cannot verify RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
+        }
+        if (
+            strlen($signature) < Signature::MIN_SIGNATURE_BYTES
+            || strlen($signature) > Signature::MAX_SIGNATURE_BYTES
+        ) {
+            throw new LimitExceeded(sprintf(
+                'A signature is not between %d and maxSignatureValueBytes, %d bytes (D-14).',
+                Signature::MIN_SIGNATURE_BYTES,
+                Signature::MAX_SIGNATURE_BYTES,
+            ));
+        }
+
+        return $this->keyThatVerifies(
+            $bytes,
+            $signature,
+            $algorithm,
+            $keys,
+            'No trusted key verifies the detached signature (D-7, D-8).',
+        );
+    }
+
+    /**
      * The first trusted key under which openssl_verify() returns 1 (D-8); 0, -1 and false on every key is a
      * mismatch, and nothing about which key came close is kept (D-13).
      *
@@ -91,6 +142,7 @@ final readonly class Verifier
         string $signatureValue,
         SignatureAlgorithm $algorithm,
         VerificationKeys $keys,
+        string $mismatch = 'No trusted key verifies the signature over SignedInfo (D-7, D-8).',
     ): VerificationKey {
         $digest = $algorithm->digest()->opensslAlgorithm();
         // the padding parameter exists on PHP 8.5 only, and isAvailable() was checked: a PSS scheme passes it,
@@ -102,6 +154,6 @@ final readonly class Verifier
             }
         }
 
-        throw new SignatureMismatch('No trusted key verifies the signature over SignedInfo (D-7, D-8).');
+        throw new SignatureMismatch($mismatch);
     }
 }
