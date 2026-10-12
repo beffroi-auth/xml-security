@@ -50,14 +50,6 @@ final readonly class Pem
      */
     public static function armour(string $bytes, string $type): string
     {
-        return (
-            '-----BEGIN '
-            . $type
-            . "-----\n"
-            . chunk_split(base64_encode($bytes), 64, "\n")
-            . '-----END '
-            . $type
-            . "-----\n"
-        );
+        return '-----BEGIN ' . $type . "-----\n" . chunk_split(base64_encode($bytes), 64, "\n") . '-----END ' . $type . "-----\n";
     }
 }

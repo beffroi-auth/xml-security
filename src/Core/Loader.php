@@ -58,11 +58,7 @@ final readonly class Loader
                 $this->limits->maxBytes,
             ));
         }
-        if (
-            str_starts_with($bytes, "\xFE\xFF")
-            || str_starts_with($bytes, "\xFF\xFE")
-            || str_starts_with($bytes, "\x00\x00\xFE\xFF")
-        ) {
+        if (str_starts_with($bytes, "\xFE\xFF") || str_starts_with($bytes, "\xFF\xFE") || str_starts_with($bytes, "\x00\x00\xFE\xFF")) {
             throw new EncodingRefused('The input starts with a UTF-16 or UTF-32 byte order mark (I-5).');
         }
         if (preg_match('//u', $bytes) !== 1) {

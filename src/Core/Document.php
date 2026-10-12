@@ -60,8 +60,6 @@ final readonly class Document
             throw new ForeignNode('The node belongs to a document the brick did not produce (I-4).');
         }
 
-        return (
-            Registry::owning($xml) ?? throw new ForeignNode('The node belongs to a document the brick did not produce (I-4).')
-        );
+        return Registry::owning($xml) ?? throw new ForeignNode('The node belongs to a document the brick did not produce (I-4).');
     }
 }

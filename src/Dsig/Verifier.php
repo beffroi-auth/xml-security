@@ -111,10 +111,7 @@ final readonly class Verifier
         if (! $algorithm->isAvailable()) {
             throw new AlgorithmUnavailable('This build cannot verify RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
         }
-        if (
-            strlen($signature) < Signature::MIN_SIGNATURE_BYTES
-            || strlen($signature) > Signature::MAX_SIGNATURE_BYTES
-        ) {
+        if (strlen($signature) < Signature::MIN_SIGNATURE_BYTES || strlen($signature) > Signature::MAX_SIGNATURE_BYTES) {
             throw new LimitExceeded(sprintf(
                 'A signature is not between %d and maxSignatureValueBytes, %d bytes (D-14).',
                 Signature::MIN_SIGNATURE_BYTES,

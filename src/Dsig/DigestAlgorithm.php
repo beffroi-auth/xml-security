@@ -25,9 +25,7 @@ enum DigestAlgorithm: string
      */
     public static function fromUri(string $uri): self
     {
-        return (
-            self::tryFrom($uri) ?? throw new UnknownDigestAlgorithm('The digest algorithm is not SHA-256, SHA-384 or SHA-512 (D-5).')
-        );
+        return self::tryFrom($uri) ?? throw new UnknownDigestAlgorithm('The digest algorithm is not SHA-256, SHA-384 or SHA-512 (D-5).');
     }
 
     /**

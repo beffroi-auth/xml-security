@@ -26,9 +26,7 @@ enum OaepHash: string
      */
     public static function fromDigestUri(string $uri): self
     {
-        return (
-            self::tryFrom($uri) ?? throw new UnknownKeyTransport('The DigestMethod of a key transport is not SHA-1, SHA-256, SHA-384 or SHA-512 (E-1).')
-        );
+        return self::tryFrom($uri) ?? throw new UnknownKeyTransport('The DigestMethod of a key transport is not SHA-1, SHA-256, SHA-384 or SHA-512 (E-1).');
     }
 
     /**

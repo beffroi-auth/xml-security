@@ -105,11 +105,7 @@ final readonly class Canonicalizer
             if ($element->prefix === null && $element->namespaceURI !== ($declared === '' ? null : $declared)) {
                 throw new InvalidArgumentException('An element without a prefix has no xmlns attribute in scope that declares its namespace (section 6.3).');
             }
-            for (
-                $child = $element->lastElementChild;
-                $child instanceof Element;
-                $child = $child->previousElementSibling
-            ) {
+            for ($child = $element->lastElementChild; $child instanceof Element; $child = $child->previousElementSibling) {
                 $stack[] = [$child, $declared];
             }
         }

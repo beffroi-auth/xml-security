@@ -31,9 +31,7 @@ enum ContentAlgorithm: string
      */
     public static function fromUri(string $uri): self
     {
-        return (
-            self::tryFrom($uri) ?? throw new UnknownContentAlgorithm('The content algorithm is not AES-128-GCM or AES-256-GCM (E-1).')
-        );
+        return self::tryFrom($uri) ?? throw new UnknownContentAlgorithm('The content algorithm is not AES-128-GCM or AES-256-GCM (E-1).');
     }
 
     /**

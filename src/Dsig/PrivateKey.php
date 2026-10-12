@@ -51,11 +51,7 @@ final readonly class PrivateKey implements SigningKeyInterface
             throw new InvalidKey('The PEM holds no private key, or the passphrase is wrong (D-16).');
         }
         $details = openssl_pkey_get_details($handle);
-        if (
-            $details === false
-            || $details['type'] !== OPENSSL_KEYTYPE_RSA
-            || $details['bits'] < VerificationKey::MIN_BITS
-        ) {
+        if ($details === false || $details['type'] !== OPENSSL_KEYTYPE_RSA || $details['bits'] < VerificationKey::MIN_BITS) {
             throw new InvalidKey('A signing key is RSA of at least 2048 bits (D-16).');
         }
 
