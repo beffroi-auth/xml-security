@@ -342,7 +342,7 @@ Constants of the namespace, never options.
 
 **Refused as input**, always, each with its named rule: `aes128-cbc`, `aes192-cbc`, `aes256-cbc`, `tripledes-cbc`, `aes192-gcm`, key wrapping (`kw-*`), key agreement, `rsa-1_5`, an `rsa-oaep` whose `DigestMethod` and `MGF` differ, a `DigestMethod` other than SHA-1 or an `MGF` under `rsa-oaep-mgf1p`, `OAEPparams`, a `Type` other than `Element`, `CipherReference`, `EncryptionProperties`, `ReferenceList`, `CarriedKeyName`, a second `EncryptedKey`, a `KeySize`, a key that is not RSA of at least 2048 bits.
 
-**Never called, in the namespace**, enforced by the rules of `.ci-tools/phpstan.neon`: `openssl_decrypt()` outside `Decryptor`, `openssl_encrypt()` outside `Encryptor`, `openssl_private_decrypt()` outside `PrivateDecryptionKey`, `openssl_public_encrypt()` outside `PeerKey`, `openssl_pkey_get_private()` and `openssl_pkey_get_public()` outside the two key classes; `openssl_private_encrypt()` and `openssl_public_decrypt()` (raw RSA); `openssl_cipher_iv_length()` and `openssl_cipher_key_length()` (the lengths are constants of this document, not answers of OpenSSL); `openssl_random_pseudo_bytes()` (`random_bytes()` is the source); `openssl_x509_*()`; `hash_hmac()`; the constants `OPENSSL_PKCS1_PADDING`, `OPENSSL_NO_PADDING`, `OPENSSL_ZERO_PADDING`; the token `cbc` anywhere in `src/Enc/`. Everything [core.md](core.md) section 8 bans is banned here too.
+**Never called, in the namespace**, enforced by the rules of `.ci-tools/phpstan-xml-security.neon`: `openssl_decrypt()` outside `Decryptor`, `openssl_encrypt()` outside `Encryptor`, `openssl_private_decrypt()` outside `PrivateDecryptionKey`, `openssl_public_encrypt()` outside `PeerKey`, `openssl_pkey_get_private()` and `openssl_pkey_get_public()` outside the two key classes; `openssl_private_encrypt()` and `openssl_public_decrypt()` (raw RSA); `openssl_cipher_iv_length()` and `openssl_cipher_key_length()` (the lengths are constants of this document, not answers of OpenSSL); `openssl_random_pseudo_bytes()` (`random_bytes()` is the source); `openssl_x509_*()`; `hash_hmac()`; the constants `OPENSSL_PKCS1_PADDING`, `OPENSSL_NO_PADDING`, `OPENSSL_ZERO_PADDING`; the token `cbc` anywhere in `src/Enc/`. Everything [core.md](core.md) section 8 bans is banned here too.
 
 ## 9. Acceptance
 
@@ -350,7 +350,7 @@ The namespace is accepted when every case below is a green test in CI on PHP 8.4
 
 ### 9.1 Vectors
 
-The valid encryptions the decryptor must accept come from xmlsec1 1.3.7 on OpenSSL in Alpine 3.22, over the test key pair of `tests/Dsig/Fixture/keys/`, with the exact command next to each fixture under `tests/Enc/Fixture/vectors/`:
+The valid encryptions the decryptor must accept come from xmlsec1 1.3.7 on OpenSSL in Alpine 3.22, over the test key pair of `tests/xml-security/Dsig/Fixture/keys/`, with the exact command next to each fixture under `tests/xml-security/Enc/Fixture/vectors/`:
 
 | Vector | Encrypted with | Expected |
 |---|---|---|
@@ -364,7 +364,7 @@ The valid encryptions the decryptor must accept come from xmlsec1 1.3.7 on OpenS
 
 ### 9.2 Hostile corpus
 
-One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of a valid vector with the one change that must refuse it, decrypted with the test key, each asserting the named exception; every case of the second half asserts the one message of E-3.
+One fixture file per case under `tests/xml-security/Enc/Fixture/hostile/`, each a variant of a valid vector with the one change that must refuse it, decrypted with the test key, each asserting the named exception; every case of the second half asserts the one message of E-3.
 
 | Case | Exception |
 |---|---|
@@ -423,7 +423,7 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 | `encrypt()` with a certificate | the key's `KeyInfo/X509Data/X509Certificate` holds its base64, on one line; without, no `KeyInfo` under the key |
 | `encrypt()` of an element with comments and inherited declarations | the plaintext is the exclusive canonical form with comments, the declarations rendered on the element (E-9) |
 | A signed assertion (the signer of `Dsig`) encrypted, decrypted, verified by `Dsig` | the stack's round trip is green |
-| xmlsec1 decrypts what `encrypt()` produced | on every run of the CI: the job Oracle has `EncryptorOracleTest` encrypt the assertion of a response under each content method and each hash the build offers, then xmlsec1 decrypts each and the document it gives back is, in its exclusive canonical form, the document before encryption (`tests/Enc/Fixture/oracle`) |
+| xmlsec1 decrypts what `encrypt()` produced | on every run of the CI: the job Oracle has `EncryptorOracleTest` encrypt the assertion of a response under each content method and each hash the build offers, then xmlsec1 decrypts each and the document it gives back is, in its exclusive canonical form, the document before encryption (`tests/xml-security/Enc/Fixture/oracle`) |
 | `encrypt()` of a built element whose default namespace is undeclared | the `\InvalidArgumentException` of `Core`'s canonicalizer, before anything is encrypted |
 | `ContentAlgorithm::fromUri()` and `OaepHash::fromDigestUri()` round-trip each case | the URI comes back |
 | `KeyTransport::uri()` | `rsa-oaep-mgf1p` for SHA-1, `rsa-oaep` otherwise |
@@ -437,9 +437,9 @@ One fixture file per case under `tests/Enc/Fixture/hostile/`, each a variant of 
 
 ### 9.4 Real documents
 
-Under `tests/Enc/Fixture/real/`, each named with its origin and the date it was captured:
+Under `tests/xml-security/Enc/Fixture/real/`, each named with its origin and the date it was captured:
 
-- SimpleSAMLphp: what signs, verifies, encrypts and decrypts inside it is its library `simplesamlphp/saml2` on `xmlseclibs`, which names `aes128-gcm`, `aes256-gcm`, `rsa-oaep-mgf1p` and `rsa-oaep`. Its `EncryptedAssertion::setAssertion()` picks AES-128-CBC for the content whenever the key it is given is an RSA key (section 13), so the real fixture is what `XMLSecEnc` produces under the test certificate, an AES-GCM session key wrapped under RSA-OAEP, the shape the library reads back with `EncryptedAssertion::getAssertion()`. The decryptor accepts that fixture with the test key, and the reverse, the library decrypting what the encryptor produced, is recorded with its scripts next to those of `Dsig` in `tests/Dsig/Fixture/real/simplesamlphp/`.
+- SimpleSAMLphp: what signs, verifies, encrypts and decrypts inside it is its library `simplesamlphp/saml2` on `xmlseclibs`, which names `aes128-gcm`, `aes256-gcm`, `rsa-oaep-mgf1p` and `rsa-oaep`. Its `EncryptedAssertion::setAssertion()` picks AES-128-CBC for the content whenever the key it is given is an RSA key (section 13), so the real fixture is what `XMLSecEnc` produces under the test certificate, an AES-GCM session key wrapped under RSA-OAEP, the shape the library reads back with `EncryptedAssertion::getAssertion()`. The decryptor accepts that fixture with the test key, and the reverse, the library decrypting what the encryptor produced, is recorded with its scripts next to those of `Dsig` in `tests/xml-security/Dsig/Fixture/real/simplesamlphp/`.
 - Entra and ADFS encrypt the assertions they issue with `aes256-cbc` under `rsa-oaep-mgf1p` when a tenant enables token encryption; decision 0013 refuses CBC, so those documents are refused by name (`UnknownContentAlgorithm`) and no capture is planned: the tenant leaves encryption off, and the question of section 12 records the trade-off.
 
 ### 9.5 Performance
@@ -448,7 +448,7 @@ One soft assertion in the suite, skipped outside CI: decrypting the assertion Si
 
 ### 9.6 Test form
 
-The form of [core.md](core.md) 9.6, unchanged; fixtures under `tests/Enc/Fixture/{vectors,hostile,behaviour,real}/`; one test class per class of `src/Enc/`, plus `TraceabilityTest` over this document and a `SourceGuardTest` over `src/Enc/`.
+The form of [core.md](core.md) 9.6, unchanged; fixtures under `tests/xml-security/Enc/Fixture/{vectors,hostile,behaviour,real}/`; one test class per class of `src/Enc/`, plus `TraceabilityTest` over this document and a `SourceGuardTest` over `src/Enc/`.
 
 ### 9.7 Adversarial pass
 
@@ -459,15 +459,17 @@ Once the corpus above is green, each row of section 3 is attacked with inputs th
 In the tree of [core.md](core.md) section 10:
 
 ```
-spec/enc.md            this document
-src/Enc/               ContentAlgorithm, OaepHash, KeyTransport, DecryptionKeyInterface, PrivateDecryptionKey, PeerKey,
-                       EncryptedData, EncryptedKey, Decryptor, Encryptor, Exception/, Internal/ (the names, the base64 and the
-                       structure helpers, as Dsig has them)
-tests/Enc/             Unit/ (one class per class of src/Enc/, plus TraceabilityTest, SourceGuardTest, AdversarialTest,
-                       RealDocumentsTest, PerformanceTest, Regression/), Support/, Fixture/ (vectors, hostile, behaviour, real,
-                       oracle: the xmlsec1 check of 9.3, each directory with a README carrying the commands)
-.ci-tools/             phpstan.neon extended with the confinements of section 8; deptrac.yaml's Enc layer, on Core only, never on
-                       Dsig; the strict Infection list of section 9 in .castor/qa.php
+src/xml-security/spec/enc.md    this document
+src/xml-security/src/Enc/       ContentAlgorithm, OaepHash, KeyTransport, DecryptionKeyInterface, PrivateDecryptionKey,
+                                PeerKey, EncryptedData, EncryptedKey, Decryptor, Encryptor, Exception/, Internal/ (the names,
+                                the base64 and the structure helpers, as Dsig has them)
+tests/xml-security/Enc/         Unit/ (one class per class of src/Enc/, plus TraceabilityTest, SourceGuardTest,
+                                AdversarialTest, RealDocumentsTest, PerformanceTest, Regression/), Support/, Fixture/ (vectors,
+                                hostile, behaviour, real, oracle: the xmlsec1 check of 9.3, each directory with a README
+                                carrying the commands)
+.ci-tools/                      phpstan-xml-security.neon extended with the confinements of section 8; deptrac.yaml's XmlEnc
+                                layer, on Core only, never on Dsig; the strict Infection list of section 9 in
+                                INFECTION_STRICT_FILES of .castor/stack/qa.php
 ```
 
 ## 11. Out of scope

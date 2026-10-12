@@ -378,7 +378,7 @@ Constants of the namespace, never options: a consumer who needs more has a case 
 
 **Refused as input**, always, each with its named rule: SHA-1 and MD5 as a digest or inside a signature method; HMAC, DSA and ECDSA signature methods; inclusive canonicalization as a method or a transform; the XPath, XSLT, base64 and XPath Filter 2 transforms; a reference with an empty URI, an `xpointer()` URI, an external URI, a `Type`; a second `Reference`, `SignedInfo`, `SignatureValue` or `KeyInfo`; `Object`, `Manifest`, `SignatureProperties`, `HMACOutputLength`; a `Signature` that is not a direct child of the claimed element; a key that is not RSA of at least 2048 bits.
 
-**Never called, in the namespace**, enforced by the rules of `.ci-tools/phpstan.neon` (the rules of [core.md](core.md) section 8, which hold the whole repository, extended to functions): `openssl_verify()` outside `Verifier`, `openssl_sign()` outside `PrivateKey`, `openssl_pkey_get_public()` outside `VerificationKey`, `openssl_pkey_get_private()` outside `PrivateKey`; `openssl_private_encrypt()`, `openssl_public_decrypt()`, `openssl_private_decrypt()`, `openssl_public_encrypt()` (raw RSA and key transport are not signatures); `openssl_x509_*()` (the certificate is read as a public key, nothing else of it is read here); `hash_hmac()`; the constants `OPENSSL_ALGO_SHA1`, `OPENSSL_ALGO_MD5`, `OPENSSL_ALGO_DSS1`, `OPENSSL_ALGO_MD4`; `base64_decode()` without its strict flag; `==` or `===` on a digest or a signature (`hash_equals()` is the comparison, and the guard test of `Core` extended to `src/Dsig/` checks the tokens). Everything [core.md](core.md) section 8 bans is banned here too, `DOMDocument`, XPath and `textContent` first.
+**Never called, in the namespace**, enforced by the rules of `.ci-tools/phpstan-xml-security.neon` (the rules of [core.md](core.md) section 8, which hold the whole repository, extended to functions): `openssl_verify()` outside `Verifier`, `openssl_sign()` outside `PrivateKey`, `openssl_pkey_get_public()` outside `VerificationKey`, `openssl_pkey_get_private()` outside `PrivateKey`; `openssl_private_encrypt()`, `openssl_public_decrypt()`, `openssl_private_decrypt()`, `openssl_public_encrypt()` (raw RSA and key transport are not signatures); `openssl_x509_*()` (the certificate is read as a public key, nothing else of it is read here); `hash_hmac()`; the constants `OPENSSL_ALGO_SHA1`, `OPENSSL_ALGO_MD5`, `OPENSSL_ALGO_DSS1`, `OPENSSL_ALGO_MD4`; `base64_decode()` without its strict flag; `==` or `===` on a digest or a signature (`hash_equals()` is the comparison, and the guard test of `Core` extended to `src/Dsig/` checks the tokens). Everything [core.md](core.md) section 8 bans is banned here too, `DOMDocument`, XPath and `textContent` first.
 
 ## 9. Acceptance
 
@@ -386,7 +386,7 @@ The namespace is accepted when every case below is a green test in CI on PHP 8.4
 
 ### 9.1 Vectors
 
-The valid signatures the verifier must accept come from an independent implementation, xmlsec1 1.3.7 on OpenSSL in Alpine 3.22 (measured, section 13), over a test key pair committed under `tests/Dsig/Fixture/keys/` and marked as test-only in its README, with the exact command next to each fixture:
+The valid signatures the verifier must accept come from an independent implementation, xmlsec1 1.3.7 on OpenSSL in Alpine 3.22 (measured, section 13), over a test key pair committed under `tests/xml-security/Dsig/Fixture/keys/` and marked as test-only in its README, with the exact command next to each fixture:
 
 | Vector | Signed with | Expected |
 |---|---|---|
@@ -403,7 +403,7 @@ Each vector is signed and verified again by the signer's own tests (9.3): xmlsec
 
 ### 9.2 Hostile corpus
 
-One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of a valid vector of 9.1 with the one change that must refuse it, each verified with the vector's own trusted key, each asserting the named exception.
+One fixture file per case under `tests/xml-security/Dsig/Fixture/hostile/`, each a variant of a valid vector of 9.1 with the one change that must refuse it, each verified with the vector's own trusted key, each asserting the named exception.
 
 | Case | Exception |
 |---|---|
@@ -462,7 +462,7 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 | `sign()` with a certificate | `KeyInfo/X509Data/X509Certificate` holds the base64, without armour or whitespace |
 | `sign()` without a certificate | no `KeyInfo` |
 | `sign()` leaves the given document untouched | the given document serializes to the same bytes before and after |
-| `sign()` with each algorithm and digest, exclusive and exclusive with comments | xmlsec1 verifies each, on every run of the CI: the job Oracle has `SignerOracleTest` sign a response and its assertion with every scheme PHP 8.5 offers, then xmlsec1 verifies both signatures of each document (`tests/Dsig/Fixture/oracle`) |
+| `sign()` with each algorithm and digest, exclusive and exclusive with comments | xmlsec1 verifies each, on every run of the CI: the job Oracle has `SignerOracleTest` sign a response and its assertion with every scheme PHP 8.5 offers, then xmlsec1 verifies both signatures of each document (`tests/xml-security/Dsig/Fixture/oracle`) |
 | `sign()` on a document that would not round-trip | the refusal of `Core`'s serializer, before anything is signed |
 | `sign()` with a `SigningKeyInterface` that is not `PrivateKey` | the bytes it returns are the `SignatureValue`; a stub records what it was asked to sign, the canonical `SignedInfo` |
 | `SignatureAlgorithm::fromUri()` and `DigestAlgorithm::fromUri()` round-trip each case | the URI comes back |
@@ -478,10 +478,10 @@ One fixture file per case under `tests/Dsig/Fixture/hostile/`, each a variant of
 
 ### 9.4 Real documents
 
-Under `tests/Dsig/Fixture/real/`, each named with its origin and the date it was captured, bytes as received, disposable identities where a capture needs one:
+Under `tests/xml-security/Dsig/Fixture/real/`, each named with its origin and the date it was captured, bytes as received, disposable identities where a capture needs one:
 
-- Entra: the common federation metadata already captured for `Core` (`tests/Core/Fixture/real/`), signed with rsa-sha256, exclusive canonicalization, the enveloped transform then exclusive canonicalization, a sha256 digest, one reference to the root's ID; the test passes the certificate of its own `KeyInfo` as the trusted key, which proves the signature, not the trust. A response and an assertion from a test tenant when one exists.
-- SimpleSAMLphp: what signs and verifies inside it is its library `simplesamlphp/saml2` on `xmlseclibs`; a response with a signed assertion and a response signed over it, produced by that library (4.20.3 on xmlseclibs 3.1.5, 27 September 2026) in a throwaway container with the test key, verified here with the test certificate; and the reverse, the library validating what the signer of this namespace produced, recorded with its scripts in `tests/Dsig/Fixture/real/README.md`. Nothing of the library is a dependency of the package. An installation as an IdP and an SP, with metadata, an `AuthnRequest` and a `LogoutRequest` captured from a browser flow, comes with the SAML layers (`Core` #15).
+- Entra: the common federation metadata already captured for `Core` (`tests/xml-security/Core/Fixture/real/`), signed with rsa-sha256, exclusive canonicalization, the enveloped transform then exclusive canonicalization, a sha256 digest, one reference to the root's ID; the test passes the certificate of its own `KeyInfo` as the trusted key, which proves the signature, not the trust. A response and an assertion from a test tenant when one exists.
+- SimpleSAMLphp: what signs and verifies inside it is its library `simplesamlphp/saml2` on `xmlseclibs`; a response with a signed assertion and a response signed over it, produced by that library (4.20.3 on xmlseclibs 3.1.5, 27 September 2026) in a throwaway container with the test key, verified here with the test certificate; and the reverse, the library validating what the signer of this namespace produced, recorded with its scripts in `tests/xml-security/Dsig/Fixture/real/README.md`. Nothing of the library is a dependency of the package. An installation as an IdP and an SP, with metadata, an `AuthnRequest` and a `LogoutRequest` captured from a browser flow, comes with the SAML layers (`Core` #15).
 - ADFS and Okta, when the corpus of `Core` (#15) captures them.
 
 A real signature the verifier refuses is a finding: either a rule is too strict and this document changes first, or the producer is wrong and the refusal is documented with the producer's name and the rule.
@@ -492,7 +492,7 @@ Two soft assertions in the suite, skipped outside CI: verifying Entra's metadata
 
 ### 9.6 Test form
 
-The form of [core.md](core.md) 9.6, unchanged: `// Given`, `// When`, `// Then`; refusals with `expectException()` and `expectExceptionMessageIs()` before `// When`; data providers with named cases; docblocks citing the invariant (`D-n`) or the row (`§9.2 row n`); fixtures as files under `tests/Dsig/Fixture/{vectors,hostile,behaviour,real,keys}/`, a fixture that exists to be refused saying so in its name; one test class per class of `src/Dsig/`, plus `TraceabilityTest` over this document, and the guard test of `Core` extended to `src/Dsig/`.
+The form of [core.md](core.md) 9.6, unchanged: `// Given`, `// When`, `// Then`; refusals with `expectException()` and `expectExceptionMessageIs()` before `// When`; data providers with named cases; docblocks citing the invariant (`D-n`) or the row (`§9.2 row n`); fixtures as files under `tests/xml-security/Dsig/Fixture/{vectors,hostile,behaviour,real,keys}/`, a fixture that exists to be refused saying so in its name; one test class per class of `src/Dsig/`, plus `TraceabilityTest` over this document, and the guard test of `Core` extended to `src/Dsig/`.
 
 ### 9.7 Adversarial pass
 
@@ -503,19 +503,21 @@ Once the corpus above is green, each row of section 3 is attacked with inputs th
 In the tree of [core.md](core.md) section 10:
 
 ```
-spec/dsig.md           this document
-src/Dsig/              SignatureAlgorithm, DigestAlgorithm, VerificationKey, VerificationKeys, SigningKeyInterface, PrivateKey,
-                       Signature, SignedInfo, Reference, Verifier, Verified, Signer, Exception/
-tests/Dsig/            Unit/ (one class per class of src/Dsig/, plus TraceabilityTest, AdversarialTest, RealDocumentsTest,
-                       PerformanceTest), Support/ (the test keys, the xmlsec1 runner for the developer who regenerates the
-                       vectors, the loaded fixtures), Fixture/ (vectors, hostile, behaviour, real, keys: 9.1 to 9.4 and the
-                       adversarial pass, oracle: the xmlsec1 check of 9.3, each directory with a README carrying the commands)
-.ci-tools/             phpstan.neon extended with the function rules of section 8; deptrac.yaml's Dsig layer, on Core only;
-                       the strict Infection list of section 9 in .castor/qa.php
-composer.json          ext-openssl added to the requirements
+src/xml-security/spec/dsig.md   this document
+src/xml-security/src/Dsig/      SignatureAlgorithm, DigestAlgorithm, VerificationKey, VerificationKeys, SigningKeyInterface,
+                                PrivateKey, Signature, SignedInfo, Reference, Verifier, Verified, Signer, Exception/
+tests/xml-security/Dsig/        Unit/ (one class per class of src/Dsig/, plus TraceabilityTest, AdversarialTest,
+                                RealDocumentsTest, PerformanceTest), Support/ (the test keys, the xmlsec1 runner for the
+                                developer who regenerates the vectors, the loaded fixtures), Fixture/ (vectors, hostile,
+                                behaviour, real, keys: 9.1 to 9.4 and the adversarial pass, oracle: the xmlsec1 check of 9.3,
+                                each directory with a README carrying the commands)
+.ci-tools/                      phpstan-xml-security.neon extended with the function rules of section 8; deptrac.yaml's
+                                XmlDsig layer, on Core only; the strict Infection list of section 9 in INFECTION_STRICT_FILES
+                                of .castor/stack/qa.php
+src/xml-security/composer.json  ext-openssl added to the requirements
 ```
 
-The job Oracle of the CI signs in the phpqa image of PHP 8.5 and verifies with xmlsec1 in Alpine 3.22, `castor xmlsec-oracle` does the same on the developer's machine: a PSS signature is random, so the oracle runs on every build rather than on a fixture pinned once. The CI prints, next to the libxml version, the OpenSSL version and whether `OPENSSL_PKCS1_PSS_PADDING` is defined on the build, so that the PSS gap of PHP 8.4 and of OpenSSL before 3.1 is visible on every run rather than hidden.
+The job Oracle of the CI signs in the phpqa image of PHP 8.5 and verifies with xmlsec1 in Alpine 3.22, `castor xml-security-oracle` does the same on the developer's machine: a PSS signature is random, so the oracle runs on every build rather than on a fixture pinned once. The CI prints, next to the libxml version, the OpenSSL version and whether `OPENSSL_PKCS1_PSS_PADDING` is defined on the build, so that the PSS gap of PHP 8.4 and of OpenSSL before 3.1 is visible on every run rather than hidden.
 
 ## 11. Out of scope
 
