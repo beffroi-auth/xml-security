@@ -1,4 +1,7 @@
-# beffroi-php/xml-security
+# beffroi/xml-security
+
+Part of [beffroi/framework](https://github.com/beffroi-php/beffroi), developed in `src/xml-security` of that monorepo; this repository is its
+read-only split. Issues and pull requests go to the monorepo.
 
 XML security for PHP, in one package and three namespaces: `Core`, a safe DOM for XML that is about to be signed,
 verified, encrypted or decrypted; `Dsig`, XML Signature; `Enc`, XML Encryption. `Core` is built; `Dsig` and `Enc`
@@ -16,7 +19,7 @@ first. This file is its short version.
 `Core` requires PHP 8.4 or later with `ext-dom` (the `Dom\` API) and `ext-libxml`, and calls nothing else.
 
 ```bash
-composer require beffroi-php/xml-security
+composer require beffroi/xml-security
 ```
 
 ## Loading
@@ -134,7 +137,7 @@ Each is code, never an option, and has its tests.
 ## What consumers never call
 
 The brick's own PHPStan configuration bans them, and every consumer is asked to copy the rules of
-`.ci-tools/phpstan.neon` and `tests/PhpStan/`: `DOMDocument`, `DOMXPath`, `Dom\XPath`, `SimpleXMLElement`,
+`.ci-tools/phpstan-xml-security.neon` and `tests/xml-security/PhpStan/` of the monorepo: `DOMDocument`, `DOMXPath`, `Dom\XPath`, `SimpleXMLElement`,
 `XMLReader`, `XMLWriter`, `libxml_set_external_entity_loader()`, the flags above, `getElementById()`,
 `setIdAttribute*()`, `getElementsByTagName*()`, `querySelector*()`, `importNode()`, `adoptNode()`, `xinclude()`,
 the validation methods; `createFromString()` and `createEmpty()` outside `Loader` and `DocumentFactory`, `C14N()`
@@ -143,24 +146,29 @@ read: `Text::of()` is the way.
 
 ## Development
 
+From the root of the monorepo, which holds the toolchain of every package:
+
 ```bash
 composer install
-castor phpunit        # PHPUnit 13 with coverage
-castor prepare-pr     # Mago lint and format, Rector, PHPStan at level max with no baseline, Deptrac, syntax, composer
-castor deptrac        # Dsig and Enc depend on Core, never the reverse, never on each other
-castor infect         # Infection on the files of section 9, no escaped mutant allowed
-castor infect --diff  # the lines changed since origin/main, the shape of every CI run on the rest
-castor libxml         # the PHP, libxml and OpenSSL versions, and whether LIBXML_NO_XXE and OPENSSL_PKCS1_PSS_PADDING are defined on this build
-castor xmlsec <file>  # xmlsec1, in an Alpine container, verifies a signed file against the test certificate: the oracle of the signer
+castor phpunit -- --testsuite xml-security   # PHPUnit 13 with coverage, this package's suite
+castor prepare-pr                            # Mago lint and format, Rector, PHPStan, Deptrac
+castor phpstan                               # this package under .ci-tools/phpstan-xml-security.neon: level max, no baseline, the bans of section 8
+castor deptrac                               # Dsig and Enc depend on Core, never the reverse, never on each other
+castor infect --strict                       # Infection on the files of section 9, no escaped mutant allowed
+castor infect --diff                         # the lines changed since origin/HEAD, the shape of every CI run on the rest
+castor libxml                                # the PHP, libxml and OpenSSL versions, and whether LIBXML_NO_XXE and OPENSSL_PKCS1_PSS_PADDING are defined on this build
+castor xml-security-xmlsec <file>            # xmlsec1, in an Alpine container, verifies a signed file against the test certificate
+castor xml-security-oracle                   # every scheme of the build signed and encrypted, then verified and decrypted by xmlsec1
 ```
 
-Every task runs inside the `ghcr.io/spomky-labs/phpqa` image when Docker is available, on PHP 8.5 by default and
-on 8.4 with `PHP_VERSION=8.4`. The CI runs the same tasks on both.
+Every task runs inside the `ghcr.io/spomky-labs/phpqa` image when Docker is available. The CI runs this package's
+suite on PHP 8.5 and on PHP 8.4.
 
 ## Security
 
-See [SECURITY.md](SECURITY.md): private reporting, an advisory and a CVE for every fix.
+See the [security policy](https://github.com/beffroi-php/beffroi/blob/0.0.x/SECURITY.md) of the monorepo: private reporting, an advisory and a CVE for
+every fix.
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see the [LICENSE](https://github.com/beffroi-php/beffroi/blob/0.0.x/LICENSE) of the monorepo.
