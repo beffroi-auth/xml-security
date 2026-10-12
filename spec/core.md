@@ -4,8 +4,8 @@ The `Core` namespace of `xml-security`, the brick the rest of this document name
 
 | | |
 |---|---|
-| Repository | `beffroi-php/xml-security`, one package for the safe DOM, XML Signature and XML Encryption, in three namespaces |
-| Package | `beffroi-php/xml-security` |
+| Repository | `src/xml-security` of the monorepo `beffroi-php/beffroi`, mirrored read only into `beffroi-php/xml-security` (core.md §10) |
+| Package | `beffroi/xml-security`, one package for the safe DOM, XML Signature and XML Encryption, in three namespaces |
 | Namespace | `Beffroi\Xml\Core`, next to `Beffroi\Xml\Dsig` and `Beffroi\Xml\Enc`; this document is the law of `Core` alone |
 | Runtime | PHP 8.4 or later, `ext-dom` (the `Dom\` API introduced in PHP 8.4), `ext-libxml`. Nothing else is called from `Core`. |
 | Consumers | the `Dsig` and `Enc` namespaces of the package, `saml2-model`; outside the stack, any XML Signature or XML Encryption profile (XAdES, WS-Security) |

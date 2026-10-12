@@ -4,8 +4,8 @@ The `Dsig` namespace of `xml-security`, XML Signature on the safe DOM of `Core`:
 
 | | |
 |---|---|
-| Repository | `beffroi-php/xml-security`, one package for the safe DOM, XML Signature and XML Encryption, in three namespaces |
-| Package | `beffroi-php/xml-security` |
+| Repository | `src/xml-security` of the monorepo `beffroi-php/beffroi`, mirrored read only into `beffroi-php/xml-security` (core.md §10) |
+| Package | `beffroi/xml-security`, one package for the safe DOM, XML Signature and XML Encryption, in three namespaces |
 | Namespace | `Beffroi\Xml\Dsig`, on `Beffroi\Xml\Core`; this document is the law of `Dsig` alone, [core.md](core.md) the law of `Core` |
 | Runtime | PHP 8.4 or later, `ext-openssl` and what `Core` requires. RSASSA-PSS needs PHP 8.5 and OpenSSL 3.1 (section 13). Nothing else is called from `Dsig`. |
 | Consumers | `saml2-model`; outside the stack, any XML Signature profile whose signature is enveloped and referenced by ID (XAdES, WS-Security) |

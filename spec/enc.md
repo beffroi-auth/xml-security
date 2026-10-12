@@ -4,8 +4,8 @@ The `Enc` namespace of `xml-security`, XML Encryption on the safe DOM of `Core`:
 
 | | |
 |---|---|
-| Repository | `beffroi-php/xml-security`, one package for the safe DOM, XML Signature and XML Encryption, in three namespaces |
-| Package | `beffroi-php/xml-security` |
+| Repository | `src/xml-security` of the monorepo `beffroi-php/beffroi`, mirrored read only into `beffroi-php/xml-security` (core.md §10) |
+| Package | `beffroi/xml-security`, one package for the safe DOM, XML Signature and XML Encryption, in three namespaces |
 | Namespace | `Beffroi\Xml\Enc`, on `Beffroi\Xml\Core`, never on `Beffroi\Xml\Dsig`; this document is the law of `Enc` alone |
 | Runtime | PHP 8.4 or later, `ext-openssl` and what `Core` requires. RSA-OAEP with a hash other than SHA-1 needs PHP 8.5 (section 13). Nothing else is called from `Enc`. |
 | Consumers | `saml2-model`; outside the stack, any XML Encryption profile whose plaintext is a whole element and whose key travels under RSA-OAEP |
