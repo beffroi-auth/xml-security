@@ -17,12 +17,12 @@ This document states what the namespace does, what it refuses and what it guaran
 
 XML Encryption failed twice in public in the last fifteen years, and both times the cipher was sound.
 
-1. **The mode was the oracle.** CBC with a padding check, the mode XML Encryption 1.0 made mandatory, let an attacker decrypt a message one byte at a time by watching which malformed ciphertexts a peer refused ("How to Break XML Encryption", Jager and Somorovsky, 2011). XML Encryption 1.1 added AES-GCM for that reason, and a verifier that still accepts CBC accepts the attack.
+1. **The mode was the oracle.** CBC with a padding check, the mode XML Encryption 1.0 made mandatory, let an attacker decrypt a message one byte at a time by watching which malformed ciphertexts a peer refused ("How to Break XML Encryption", Jager and Somorovsky, 2011). XML Encryption 1.1 added AES-GCM for that reason, and a verifier that still decrypts CBC accepts the attack, unless no altered ciphertext can reach its decryptor: a signature that covers the ciphertext, verified before anything is decrypted, refuses every alteration first.
 2. **The key transport was the oracle.** RSA PKCS#1 v1.5 key transport lets an attacker unwrap a session key by watching which malformed wrapped keys a peer refuses (Bleichenbacher, 1998); RSA-OAEP with a leaky implementation leaks the same way (Manger, 2001). And a peer that accepts both the old and the new can be made to unwrap a GCM session key under v1.5, so that adding GCM changed nothing ("One Bad Apple", Jager, Paterson and Somorovsky, 2013). What a decryptor accepts must be a closed list, and what it says when it fails must be one thing.
 3. **The tag was not checked.** In March 2026 the two PHP bricks that exist decrypted AES-GCM without checking the length of the authentication tag, so that a truncated tag, down to nothing, authenticated anything (CVE-2026-32313, CVE-2026-32600); the primitive of PHP accepts a truncated tag, and a key of the wrong length, and says nothing (measured, section 13).
 4. **The plaintext was trusted.** A decrypted assertion is bytes an attacker chose the shape of, parsed by a second path that skipped the rules the first one enforced. What comes out of a decryption is input, and goes through the same loader as everything else.
 
-The namespace answers each with a rule in code: two ciphers and one key transport family by name, every length checked before the primitive sees a byte, one exception with one message for every cryptographic failure, and the plaintext loaded through the consumer's `Loader` before the consumer sees it.
+The namespace answers each with a rule in code: AES-GCM and one key transport family by name, AES-CBC opened only under a verified signature that covers the ciphertext and never written, every length checked before the primitive sees a byte, one exception with one message for every cryptographic failure, and the plaintext loaded through the consumer's `Loader` before the consumer sees it.
 
 ## 2. Position
 
@@ -37,7 +37,7 @@ graph LR
     core --> ext["ext-dom, ext-libxml"]
 ```
 
-`Enc` reaches the DOM and libxml through `Core` only, and never reaches `Dsig`: an encrypted assertion is decrypted here into a `Document`, and `saml2-model` hands that document's root to `Dsig`. What `Enc` adds is `ext-openssl`, called in four functions in four files (section 8), and the shape of XML Encryption. The primitives stay where they are: AES-GCM and RSA-OAEP to OpenSSL, the randomness to PHP's `random_bytes()`.
+`Enc` reaches the DOM and libxml through `Core` only, and never reaches `Dsig`: an encrypted assertion is decrypted here into a `Document`, and `saml2-model` hands that document's root to `Dsig`. What `Enc` adds is `ext-openssl`, called in four functions in four files (section 8), and the shape of XML Encryption. The primitives stay where they are: AES-GCM, AES-CBC and RSA-OAEP to OpenSSL, the randomness to PHP's `random_bytes()`. That a signature covers a ciphertext is `Dsig`'s to verify and the consumer's to prove (E-15): `Enc` receives the proof as a type of its own and checks what it covers.
 
 ## 3. Threat model
 
@@ -45,7 +45,7 @@ Each row is an incident, the rule that answers it, and where the rule lives. The
 
 | Threat | Incident | Rule | Where |
 |---|---|---|---|
-| Padding oracle on the content | "How to Break XML Encryption" (2011), CBC | CBC and 3DES are refused by name; AES-GCM only, whose tag is checked in length and value | E-1, E-2, `ContentAlgorithm` |
+| Padding oracle on the content | "How to Break XML Encryption" (2011), CBC | AES-CBC opened only under a verified signature that covers the encrypted element, so that an altered ciphertext never reaches the decryptor, and failing in one way, the refusal of its plaintext included; 3DES and `aes192-cbc` refused by name; AES-GCM, whose tag is checked in length and value; nothing encrypted in CBC | E-1, E-2, E-15, E-16, `ContentAlgorithm`, `CbcContentAlgorithm`, `Decryptor` |
 | Padding oracle on the key | Bleichenbacher (1998), Manger (2001), "One Bad Apple" (2013) | RSA PKCS#1 v1.5 key transport is refused by name even next to GCM; RSA-OAEP only; every cryptographic failure is one exception with one message | E-1, E-3, `KeyTransport`, `Decryptor` |
 | Truncated or absent tag | CVE-2026-32313 (xmlseclibs), CVE-2026-32600 (simplesamlphp/xml-security), March 2026 | The tag is exactly 16 bytes, the IV exactly 12, the session key exactly the method's length, checked before the primitive is called, which checks none of it (measured) | E-2, `Decryptor` |
 | Plaintext parsed by a second path | The parser differentials of `Core` section 3 | The plaintext goes through the consumer's `Loader`, bounds, DOCTYPE and ID rules included, and the consumer receives a `Document` | E-4, `Decryptor` |
@@ -61,20 +61,22 @@ Each row is an incident, the rule that answers it, and where the rule lives. The
 
 Each invariant is code, never a constructor option or a flag, has at least one test in the corpus of section 9, and names the attack class it closes.
 
-- **E-1. Two ciphers, one key transport family, by name.** `ContentAlgorithm::fromUri()` accepts `aes128-gcm` and `aes256-gcm`; `KeyTransport::of()` accepts `rsa-oaep-mgf1p`, with or without the `DigestMethod` of SHA-1 that names its only hash, and `rsa-oaep` of XML Encryption 1.1 when its `DigestMethod` and `MGF` name the same hash. CBC, 3DES, `aes192-gcm`, RSA PKCS#1 v1.5, key wrapping and key agreement are refused by name, before anything is decoded. Padding oracles, downgrade.
-- **E-2. Every length before the primitive.** The unwrapped session key has exactly the length of the content method (16 or 32 bytes); the IV is the first 12 bytes of the cipher value; the tag is its last 16 bytes; at least one byte of ciphertext lies between them. `openssl_decrypt()` accepts a longer key and a shorter tag and says nothing (measured, section 13), so nothing is passed to it that was not checked. The truncated tag.
-- **E-3. One failure.** After the reading model has accepted the structure, every cryptographic failure, the unwrap that returns nothing, a session key of the wrong length, a tag or a ciphertext the cipher refuses, is `DecryptionFailed` with the one message of section 5.6, whatever happened. Nothing about which step failed is kept, said or timed by the namespace. Padding oracles.
-- **E-4. The consumer reads what `Core` loaded.** `Decryptor::decrypt()` returns the `Document` the consumer's `Loader` built from the plaintext bytes, with the ID attributes and the limits the consumer registered; a plaintext `Core` refuses is `Core`'s refusal, named, since the ciphertext was authentic and the content is what is refused. Parser differentials.
+- **E-1. Closed lists, by name.** `ContentAlgorithm::fromUri()` accepts `aes128-gcm` and `aes256-gcm`, the methods that authenticate the ciphertext, the only ones the encryptor writes and `Decryptor::decrypt()` opens; `CbcContentAlgorithm` names `aes128-cbc` and `aes256-cbc`, which the reading model reads and `Decryptor::decryptCovered()` alone opens (E-15); `KeyTransport::of()` accepts `rsa-oaep-mgf1p`, with or without the `DigestMethod` of SHA-1 that names its only hash, and `rsa-oaep` of XML Encryption 1.1 when its `DigestMethod` and `MGF` name the same hash. `aes192-cbc`, 3DES, `aes192-gcm`, RSA PKCS#1 v1.5, key wrapping and key agreement are refused by name, before anything is decoded. Padding oracles, downgrade.
+- **E-2. Every length before the primitive.** The unwrapped session key has exactly the length of the content method (16 or 32 bytes); under AES-GCM, the IV is the first 12 bytes of the cipher value, the tag its last 16 bytes, and at least one byte of ciphertext lies between them; under AES-CBC, the IV is the first 16 bytes and what follows is whole blocks of 16 bytes, at least one. `openssl_decrypt()` accepts a longer key, under GCM and CBC alike, and a shorter tag, and says nothing (measured, section 13), so nothing is passed to it that was not checked. The truncated tag.
+- **E-3. One failure.** After the reading model has accepted the structure, every cryptographic failure, the unwrap that returns nothing, a session key of the wrong length, a tag or a ciphertext the cipher refuses, and under AES-CBC a padding or a plaintext (E-16), is `DecryptionFailed` with the one message of section 5.6, whatever happened, raised in one place (section 6.1 step 9). Nothing about which step failed is kept or said by the namespace, in the message, the line or the trace of the exception; what the time says is section 6.1's. Padding oracles.
+- **E-4. The consumer reads what `Core` loaded.** `Decryptor::decrypt()` and `decryptCovered()` return the `Document` the consumer's `Loader` built from the plaintext bytes, with the ID attributes and the limits the consumer registered. Under AES-GCM, a plaintext `Core` refuses is `Core`'s refusal, named, since the tag authenticated the ciphertext and the content is what is refused; under AES-CBC, which authenticates nothing, it is the one failure (E-16). Parser differentials.
 - **E-5. The structure is read strictly.** `EncryptedData` has a `Type` of `http://www.w3.org/2001/04/xmlenc#Element`, one `EncryptionMethod`, one `KeyInfo`, one `CipherData`, and no other element child; `KeyInfo` holds exactly one `EncryptedKey`; `EncryptedKey` has one `EncryptionMethod`, an optional `KeyInfo` that is never read, one `CipherData`; `CipherData` holds one `CipherValue` and no `CipherReference`; `EncryptionProperties`, `ReferenceList` and `CarriedKeyName` are refused. Every child is read with `Core`'s `Children`, direct children only. Loose structure.
 - **E-6. Keys from the consumer.** The decryption key is what the consumer passes, through a port a key management service implements without handing its key over; the `KeyInfo` of the `EncryptedKey`, the recipient's certificate hint, is never read. Key substitution.
 - **E-7. Strict decoding, bounded first.** The cipher values are decoded with `base64_decode($text, true)` after whitespace removal, and the text is bounded before decoding (section 7). Denial of service.
 - **E-8. Fresh randomness.** `Encryptor::encrypt()` draws a new session key and a new IV from `random_bytes()` for every call, never reusing either. Nonce reuse.
 - **E-9. The plaintext is a self-contained element.** The encryptor encrypts the exclusive canonical form with comments of the element, with every prefix in scope on its `PrefixList`: every namespace declaration in scope is rendered on the element, those a QName value such as `xsi:type="xs:string"` needs included, which exclusive canonicalization alone leaves out. The `xml:*` attributes an ancestor carries are not imported, so that the signature of a signed element still verifies once it is decrypted: a consumer who needs one puts it on the element. The plaintext is loaded once before it is encrypted, by the consumer's `Loader` with its ID attributes and its limits, so that what no parser accepts is refused here rather than by the peer, and nothing the consumer's own loader accepts is refused. The decryptor loads what it gets, and an element that does not parse on its own is refused by `Core`. Context loss.
-- **E-10. Four OpenSSL calls, one file each.** `openssl_decrypt()` is called once, in `Decryptor`; `openssl_encrypt()` once, in `Encryptor`; `openssl_private_decrypt()` once, in `PrivateDecryptionKey`; `openssl_public_encrypt()` once, in `PeerKey`. `openssl_pkey_get_private()` and `openssl_pkey_get_public()` are called in the two key classes only. The rules of section 8 enforce it.
+- **E-10. Four OpenSSL calls, one file each.** `openssl_decrypt()` is called once, in `Decryptor`, for AES-GCM and AES-CBC alike; `openssl_encrypt()` once, in `Encryptor`; `openssl_private_decrypt()` once, in `PrivateDecryptionKey`; `openssl_public_encrypt()` once, in `PeerKey`. `openssl_pkey_get_private()` and `openssl_pkey_get_public()` are called in the two key classes only. The rules of section 8 enforce it.
 - **E-11. RSA of at least 2048 bits.** A decryption key or a peer key that is not RSA, or whose modulus is shorter than 2048 bits, is refused when the key object is built. A peer key is read from exactly one PEM block in memory, of the type its factory names (`CERTIFICATE` or `PUBLIC KEY`), whose content is strict base64 with nothing around it but whitespace, or from the base64 of a certificate: a path OpenSSL would open (`file://`), text around the block, a bundle or a chain is refused before OpenSSL reads anything, as `Dsig`'s D-16 says of a verification key. Weak keys, and a key read from anywhere but the string the consumer gave.
 - **E-12. Refusals name the rule, never the input; the failure names nothing.** A refusal of the reading model says which invariant refused and never carries the bytes, an algorithm string, a key or a certificate; `DecryptionFailed` says only that the data could not be decrypted.
 - **E-13. Bounded.** The text of a `CipherValue`, the decoded length of an `EncryptedKey`'s cipher value and the plaintext, bounded by the constants of section 7 and by `Core`. Denial of service.
 - **E-14. The certificate hint is a certificate.** The `$certificatePem` a consumer gives `Encryptor::encrypt()` is exactly one PEM block of type `CERTIFICATE`, whose content is strict base64, with nothing around it but whitespace; a private key, a bundle holding a key and a certificate, a chain, or any other text is refused with `InvalidKey` before anything is canonicalized, and `X509Certificate` carries the base64 of the decoded certificate. The parameter is a `SensitiveParameter`, so that a key passed by mistake stays out of the traces. A private key sent to the peer; the twin of `Dsig`'s D-17.
+- **E-15. AES-CBC under a covering signature only, and never written.** AES-CBC authenticates nothing, so it is opened only once a signature, verified under a key the consumer trusts for the peer, covers the `xenc:EncryptedData` (decision 0013): `Decryptor::decryptCovered()` takes that proof, a `CoveringSignatureInterface` whose document is the one the verification re-parsed from the bytes its digest matched (dsig.md D-10), and refuses an encrypted element that is not a node of that document; `Decryptor::decrypt()` takes no proof, and refuses AES-CBC by name before any key is touched (`CoveringSignatureRequired`). An altered ciphertext is then refused by the signature before the decryptor sees it, and the padding oracle has nothing to read. The capability is a type, never a flag a caller sets. `Enc` never reaches `Dsig` (decision 0015), so it checks what the proof covers and not where the proof comes from: building it from a verification and nothing else is the consumer's, as `saml2-model` builds it from the `Dsig` `Verified` of the response's signature (model.md section 6.7). The encryptor takes a `ContentAlgorithm`, which names no CBC: nothing is encrypted in CBC, by the signature of the method. Padding oracles.
+- **E-16. Under AES-CBC, one failure, the plaintext's included.** The content is decrypted without OpenSSL's padding check (`OPENSSL_ZERO_PADDING`): the padding of XML Encryption 1.1 §5.2 is arbitrary octets ended by their count, which xmlsec1 fills at random and PKCS#7 would refuse (measured, section 13), so the count, the last octet, is read and nothing else of the padding; 1 to 16 is its range. An unwrap that gives nothing, a session key of the wrong length, a count out of range and a plaintext `Core` refuses are all the one `DecryptionFailed` of E-3: without a tag, a refusal of the loader says nothing the namespace can trust of the ciphertext, and it is what told a good padding from a bad one in "How to Break XML Encryption". The steps run whatever failed before them: a session key that does not unwrap is replaced by random bytes of the method's length and the content decrypted and its count read all the same, so that a wrong key and a wrong padding cost the same work (section 6.1); what remains to be timed is measured in section 13. Padding oracles.
 
 ## 5. Public API
 
@@ -97,6 +99,18 @@ enum ContentAlgorithm: string
     public static function fromUri(string $uri): self;
     public function keyBytes(): int;      // 16 or 32
     public function cipher(): string;     // 'aes-128-gcm' or 'aes-256-gcm', what openssl_encrypt() and openssl_decrypt() take
+}
+
+enum CbcContentAlgorithm: string
+{
+    case Aes128Cbc = 'http://www.w3.org/2001/04/xmlenc#aes128-cbc';
+    case Aes256Cbc = 'http://www.w3.org/2001/04/xmlenc#aes256-cbc';
+
+    public const int BLOCK_BYTES = 16;     // XML Encryption 1.1 §5.2.2: a 128-bit IV before the ciphertext, whole blocks of it
+    public const int MIN_CIPHER_BYTES = 32; // the IV and one block
+
+    public function keyBytes(): int;      // 16 or 32
+    public function cipher(): string;     // 'aes-128-cbc' or 'aes-256-cbc', what openssl_decrypt() takes
 }
 
 enum OaepHash: string
@@ -139,7 +153,9 @@ final readonly class KeyTransport
 }
 ```
 
-SHA-1 inside OAEP is not a collision property and is what the interoperability targets use; the closed list keeps it. XML Encryption 1.1's `rsa-oaep` with SHA-256, SHA-384 or SHA-512 is accepted where PHP can express it, both the OAEP hash and the MGF1 hash being the same digest, which is what the fifth parameter of `openssl_public_encrypt()` and `openssl_private_decrypt()` sets on PHP 8.5 (measured, section 13); a `DigestMethod` and an `MGF` that name different hashes are refused by name, and any hash other than SHA-1 on PHP 8.4 is `AlgorithmUnavailable`. `aes192-gcm` is refused because nothing of the stack produces it and a list that stays short stays reviewable.
+`ContentAlgorithm` is what the namespace writes and what `decrypt()` opens. `CbcContentAlgorithm` is what Entra, ADFS and SimpleSAMLphp's library write (section 13), read by the reading model and opened by `decryptCovered()` only (E-15). They are two enumerations rather than one so that the encryptor's parameter cannot name CBC: that nothing is encrypted in CBC is a fact of a signature, not a check. `aes192-cbc` is refused for the reason `aes192-gcm` is.
+
+SHA-1 inside OAEP is not the SHA-1 decision 0013 refuses. That decision's list is the algorithms of XML Signature, RSA with SHA-256 and above and RSASSA-PSS, neither SHA-1 nor HMAC, where a collision forges a signature; its row for `Enc` names RSA-OAEP, and `rsa-oaep-mgf1p` is RSA-OAEP with SHA-1 by definition (XML Encryption 1.1 §5.5.2). Inside OAEP, SHA-1 hashes an empty label and drives MGF1, where no collision forges anything, and it is what every interoperability target wraps under, Shibboleth, ADFS and Entra writing the `DigestMethod` that names it under `rsa-oaep-mgf1p` (section 13): the closed list keeps it, written or not, under AES-GCM and AES-CBC alike (section 9.1). XML Encryption 1.1's `rsa-oaep` with SHA-256, SHA-384 or SHA-512 is accepted where PHP can express it, both the OAEP hash and the MGF1 hash being the same digest, which is what the fifth parameter of `openssl_public_encrypt()` and `openssl_private_decrypt()` sets on PHP 8.5 (measured, section 13); a `DigestMethod` and an `MGF` that name different hashes are refused by name, and any hash other than SHA-1 on PHP 8.4 is `AlgorithmUnavailable`. `aes192-gcm` is refused because nothing of the stack produces it and a list that stays short stays reviewable.
 
 ### 5.2 Keys
 
@@ -179,7 +195,20 @@ final readonly class PeerKey
 }
 ```
 
-`DecryptionKeyInterface` is the one port of the namespace: a key management service unwraps without ever handing its key over, and answers `null` rather than a reason, so that the port itself cannot become the oracle. `PrivateDecryptionKey` is the implementation on a PEM in memory, and reads that PEM and nothing else: a string that starts with `file://`, which `openssl_pkey_get_private()` opens as a path, is refused, and a `null` passphrase is passed as the empty one, since OpenSSL asks the terminal for the passphrase of an encrypted PEM given none (measured, dsig.md section 13). `PeerKey` is the encryption certificate of the peer's metadata, read the way `Dsig`'s `VerificationKey` reads a signing certificate: exactly one PEM block, written again from its decoded bytes before `openssl_pkey_get_public()` sees it, no DER parser; whether the certificate is expired or trusted is the metadata layer's business.
+```php
+interface CoveringSignatureInterface
+{
+    /**
+     * The document a signature, verified under a key the consumer trusts for the peer, covers: the re-parse of the very
+     * bytes its digest matched (dsig.md D-10), so that every node of it is what was signed.
+     */
+    public function document(): Document;
+}
+```
+
+`CoveringSignatureInterface` is the proof `decryptCovered()` asks for before it opens AES-CBC (E-15). The namespace checks that the encrypted element is a node of its document, and cannot check more: it never reaches `Dsig`. Its implementation is the consumer's, built from a verification and from nothing else, as `saml2-model`'s is from the `Verified` of the response's signature, verified under the keys of the peer's metadata (model.md section 6.7).
+
+`DecryptionKeyInterface` is the one port of the namespace that unwraps: a key management service unwraps without ever handing its key over, and answers `null` rather than a reason, so that the port itself cannot become the oracle. `PrivateDecryptionKey` is the implementation on a PEM in memory, and reads that PEM and nothing else: a string that starts with `file://`, which `openssl_pkey_get_private()` opens as a path, is refused, and a `null` passphrase is passed as the empty one, since OpenSSL asks the terminal for the passphrase of an encrypted PEM given none (measured, dsig.md section 13). `PeerKey` is the encryption certificate of the peer's metadata, read the way `Dsig`'s `VerificationKey` reads a signing certificate: exactly one PEM block, written again from its decoded bytes before `openssl_pkey_get_public()` sees it, no DER parser; whether the certificate is expired or trusted is the metadata layer's business.
 
 ### 5.3 The reading model
 
@@ -197,9 +226,10 @@ final readonly class EncryptedData
 
     public function __construct(
         public \Dom\Element $element,
-        public ContentAlgorithm $algorithm,
+        public ContentAlgorithm|CbcContentAlgorithm $algorithm,
         public EncryptedKey $key,
-        public string $cipherValue,          // decoded: IV, ciphertext, tag; at least IV_BYTES + 1 + TAG_BYTES bytes
+        public string $cipherValue,          // decoded: under AES-GCM, IV, ciphertext, tag, at least IV_BYTES + 1 + TAG_BYTES
+                                             // bytes; under AES-CBC, IV and whole blocks, at least MIN_CIPHER_BYTES
     ) {}
 }
 
@@ -234,7 +264,10 @@ final readonly class Decryptor
     public function __construct(private Loader $loader) {}
 
     /**
+     * AES-GCM only: AES-CBC is refused by name before any key is touched (E-15).
+     *
      * @param \Dom\Element $encrypted the xenc:EncryptedData element, the child of a saml:EncryptedAssertion
+     * @throws CoveringSignatureRequired when the content is AES-CBC (E-15)
      * @throws EncryptionRefused the reading model's refusals, naming the rule (E-12)
      * @throws DecryptionFailed the one failure of E-3
      * @throws AlgorithmUnavailable a hash this build cannot unwrap under
@@ -242,6 +275,22 @@ final readonly class Decryptor
      * @throws ForeignNode when $encrypted is not of a document of the brick
      */
     public function decrypt(\Dom\Element $encrypted, DecryptionKeyInterface $key): Document;
+
+    /**
+     * AES-GCM as decrypt() does, and AES-CBC under the one failure of E-16, once $signature covers $encrypted (E-15).
+     *
+     * @throws CoveringSignatureRequired when $encrypted is not a node of $signature->document() (E-15)
+     * @throws EncryptionRefused the reading model's refusals, naming the rule (E-12)
+     * @throws DecryptionFailed the one failure of E-3, the refusal of the plaintext included under AES-CBC (E-16)
+     * @throws AlgorithmUnavailable a hash this build cannot unwrap under
+     * @throws \Beffroi\Xml\Core\Exception\RefusedXml what Core refuses of an AES-GCM plaintext (E-4)
+     * @throws ForeignNode when $encrypted is not of a document of the brick
+     */
+    public function decryptCovered(
+        \Dom\Element $encrypted,
+        DecryptionKeyInterface $key,
+        CoveringSignatureInterface $signature,
+    ): Document;
 }
 ```
 
@@ -291,6 +340,7 @@ abstract class EncryptionRefused extends RefusedXml {}
 final class MalformedEncryption extends EncryptionRefused {}      // E-5, E-7: the structure is not the one of 5.3
 final class UnknownContentAlgorithm extends EncryptionRefused {}  // E-1
 final class UnknownKeyTransport extends EncryptionRefused {}      // E-1
+final class CoveringSignatureRequired extends EncryptionRefused {} // E-15: AES-CBC without a signature that covers it
 final class AlgorithmUnavailable extends EncryptionRefused {}     // an OAEP hash other than SHA-1 before PHP 8.5
 final class DecryptionFailed extends EncryptionRefused {}         // E-3: "The data could not be decrypted (E-3).", the one message
 final class InvalidKey extends EncryptionRefused {}               // E-11, or no key in the PEM
@@ -304,16 +354,19 @@ An `EncryptionRefused` is input the namespace refuses; it extends `Core`'s `Refu
 
 ### 6.1 Decryption, in order
 
-`Decryptor::decrypt($encrypted, $key)`:
+`Decryptor::decrypt($encrypted, $key)` and `Decryptor::decryptCovered($encrypted, $key, $signature)`:
 
-1. **Ownership.** `Document::owning($encrypted)` (`ForeignNode` otherwise).
-2. **The reading model.** `EncryptedData::of()` reads the structure of 5.3 with `Core`'s `Children`, `Attributes` and `Text`, refusing at the first fault: the element is a `xenc:EncryptedData`; its `Type` is `http://www.w3.org/2001/04/xmlenc#Element` (a missing `Type`, `Content` or anything else is a refusal: the plaintext is a whole element or nothing); the `Algorithm` of its `EncryptionMethod` goes through `ContentAlgorithm::fromUri()` (E-1), and the element has no child (a `KeySize` or an `OAEPparams` is a refusal); its `KeyInfo` holds exactly one `EncryptedKey` and nothing else; the `EncryptedKey`'s `EncryptionMethod` is `rsa-oaep-mgf1p` with an optional `ds:DigestMethod` that names SHA-1, the one hash MGF1 uses under that name (XML Encryption 1.0 §5.4.2, the shape Shibboleth and ADFS write), or `rsa-oaep` with an optional `ds:DigestMethod` and an optional `xenc11:MGF` naming the same hash, SHA-1 when absent (XML Encryption 1.1 §5.5.2), through `OaepHash::fromDigestUri()` and `fromMgfUri()` (E-1); an `OAEPparams`, an `MGF` under `rsa-oaep-mgf1p` and any other child are refusals; the `EncryptedKey`'s `KeyInfo` is not read; each `CipherData` holds one `CipherValue` and no `CipherReference`; both cipher values are decoded (E-7) and their lengths checked: the key's between 256 and `maxEncryptedKeyBytes` bytes, the data's at least `IV_BYTES + 1 + TAG_BYTES` (E-2, E-13).
-3. **Availability.** A hash this build cannot unwrap under is `AlgorithmUnavailable`, before any key is touched.
-4. **The session key.** `$key->unwrap($encryptedKey->cipherValue, $transport->hash)`; `null` is `DecryptionFailed` (E-3); a key whose length is not `$algorithm->keyBytes()` is `DecryptionFailed` (E-2). `PrivateDecryptionKey` empties OpenSSL's error queue after the unwrap, whatever its outcome: an OAEP decoding error left there would tell whoever reads `openssl_error_string()` which step failed (E-3).
-5. **The content.** The IV is the first `IV_BYTES` of the data's cipher value, the tag its last `TAG_BYTES`, the ciphertext what lies between; `openssl_decrypt($ciphertext, $algorithm->cipher(), $sessionKey, OPENSSL_RAW_DATA, $iv, $tag)`; `false` is `DecryptionFailed` (E-3). An empty plaintext cannot come back: step 2 refused a cipher value with no ciphertext byte, and GCM keeps the length (section 9.2, row 26).
-6. **The result.** `$this->loader->load($plaintext)` gives the `Document` (E-4): the same loader as everything else, so the same bounds, the same DOCTYPE and ID rules. What `Core` refuses there is `Core`'s refusal.
+1. **Ownership.** `Document::owning($encrypted)` (`ForeignNode` otherwise). `decryptCovered()` then refuses an element that is not a node of `$signature->document()`, before anything is read (`CoveringSignatureRequired`, E-15).
+2. **The reading model.** `EncryptedData::of()` reads the structure of 5.3 with `Core`'s `Children`, `Attributes` and `Text`, refusing at the first fault: the element is a `xenc:EncryptedData`; its `Type` is `http://www.w3.org/2001/04/xmlenc#Element` (a missing `Type`, `Content` or anything else is a refusal: the plaintext is a whole element or nothing); the `Algorithm` of its `EncryptionMethod` is a case of `ContentAlgorithm` or of `CbcContentAlgorithm`, `UnknownContentAlgorithm` otherwise (E-1), and the element has no child (a `KeySize` or an `OAEPparams` is a refusal); its `KeyInfo` holds exactly one `EncryptedKey` and nothing else; the `EncryptedKey`'s `EncryptionMethod` is `rsa-oaep-mgf1p` with an optional `ds:DigestMethod` that names SHA-1, the one hash MGF1 uses under that name (XML Encryption 1.0 §5.4.2, the shape Shibboleth and ADFS write), or `rsa-oaep` with an optional `ds:DigestMethod` and an optional `xenc11:MGF` naming the same hash, SHA-1 when absent (XML Encryption 1.1 §5.5.2), through `OaepHash::fromDigestUri()` and `fromMgfUri()` (E-1); an `OAEPparams`, an `MGF` under `rsa-oaep-mgf1p` and any other child are refusals; the `EncryptedKey`'s `KeyInfo` is not read; each `CipherData` holds one `CipherValue` and no `CipherReference`; both cipher values are decoded (E-7) and their lengths checked: the key's between 256 and `maxEncryptedKeyBytes` bytes, the data's at least `IV_BYTES + 1 + TAG_BYTES` under AES-GCM, and under AES-CBC an IV and whole blocks of `BLOCK_BYTES`, at least one (E-2, E-13).
+3. **The capability.** `decrypt()` refuses AES-CBC by name (`CoveringSignatureRequired`, E-15), before any key is touched.
+4. **Availability.** A hash this build cannot unwrap under is `AlgorithmUnavailable`, before any key is touched.
+5. **The session key.** `$key->unwrap($encryptedKey->cipherValue, $transport->hash)`; `null`, or a key whose length is not `$algorithm->keyBytes()` (E-2), is a failure, kept for step 9 (E-3). Under AES-GCM, nothing of steps 6 to 8 runs then. Under AES-CBC, the session key is replaced by `random_bytes($algorithm->keyBytes())`, and steps 6 to 8 run all the same (E-16). `PrivateDecryptionKey` empties OpenSSL's error queue after the unwrap, whatever its outcome: an OAEP decoding error left there would tell whoever reads `openssl_error_string()` which step failed (E-3).
+6. **The content.** Under AES-GCM, the IV is the first `IV_BYTES` of the data's cipher value, the tag its last `TAG_BYTES`, the ciphertext what lies between; `openssl_decrypt($ciphertext, $algorithm->cipher(), $sessionKey, OPENSSL_RAW_DATA, $iv, $tag)`; `false` is a failure, kept for step 9 (E-3). An empty plaintext cannot come back: step 2 refused a cipher value with no ciphertext byte, and GCM keeps the length (section 9.2, row 26). Under AES-CBC, the IV is the first `BLOCK_BYTES`, the ciphertext the rest; `openssl_decrypt($ciphertext, $algorithm->cipher(), $sessionKey, OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING, $iv)`, which gives the padded plaintext, OpenSSL removing nothing (E-16); `false`, which a key of the method's length and whole blocks never give (section 13), is a failure too. The two modes go through the one `openssl_decrypt()` of the namespace (E-10).
+7. **The padding, AES-CBC.** The count is the last octet of the padded plaintext (XML Encryption 1.1 §5.2): from 1 to `BLOCK_BYTES`, that many octets are removed, the others of the padding never read; any other count is a failure, and nothing is loaded.
+8. **The plaintext.** `$this->loader->load($plaintext)` gives the `Document` (E-4): the same loader as everything else, so the same bounds, the same DOCTYPE and ID rules. Under AES-GCM, what `Core` refuses there is `Core`'s refusal. Under AES-CBC, a refusal of `Core` is a failure (E-16).
+9. **The one failure.** A failure of steps 5 to 8 is `DecryptionFailed`, raised in one place: the exception of a key that does not unwrap, of a tag or a ciphertext refused, of a count out of range and of a plaintext refused under AES-CBC is the same class with the same message, built on the same line of the same method, so that neither `getLine()` nor `getTrace()` tells one from another (E-3). The `Document` is returned otherwise.
 
-Steps 4 and 5 fail in one way: the same class, the same message, and nothing kept. The namespace does not attempt to make the two failures take the same time; the measured cost of a failing unwrap is that of a succeeding one (section 13), and the tag check of GCM is constant-time inside OpenSSL.
+What the timing still reveals, and why it is accepted. Under AES-GCM, the content is not decrypted when the session key does not unwrap, so that the time tells a key that unwraps from one that does not: that is whether the wrapped key is valid OAEP for the service provider's key, which RSA-OAEP is proven to withstand, its security being against an attacker who is told the result of every decryption he asks for (IND-CCA2). Manger's attack needs more, a decryption that tells one failure of the OAEP decoding, the leading octet of the integer that is not zero, from the others; OpenSSL's decoding reports every failure with one error, by code written to run in constant time, the measured cost of a failing unwrap being that of a succeeding one (section 13), and `PrivateDecryptionKey` keeps its errors (step 5). The tag check of GCM is constant-time inside OpenSSL, and a tag refused costs what a tag accepted does. Under AES-CBC, steps 5 to 8 run whatever failed before them: a key that does not unwrap and a count out of range both cost an unwrap, a decryption and the reading of one octet; a plaintext the count lets through and `Core` refuses costs a load besides, which stops at its first fault. What that leaves to a timer is measured in section 13, and E-15 leaves an altered ciphertext no way to the decryptor in the first place.
 
 ### 6.2 Encryption, in order
 
@@ -336,17 +389,18 @@ Constants of the namespace, never options.
 | `maxEncryptedKeyBytes` | 1 024 decoded | RSA-2048 wraps in 256 bytes, RSA-8192 in 1 024; a value under 256 bytes is refused too (E-11). |
 | `maxEncryptedKeyTextBytes` | 4 096 of text | The text of an `EncryptedKey`'s `CipherValue`, checked before decoding: 1 024 bytes are 1 368 characters of base64, and the lines and indentation of a pretty-printed document stay far below. `maxCipherValueBytes` would let two mebibytes be decoded to be refused. |
 | `IV_BYTES`, `TAG_BYTES` | 12, 16 | XML Encryption 1.1 §5.2.4, and what GCM was standardised with (NIST SP 800-38D). |
-| The session key | exactly `keyBytes()` of the method | A longer key decrypts under `openssl_decrypt()` (measured); nothing but the exact length reaches it. |
+| `BLOCK_BYTES` of `CbcContentAlgorithm` | 16 | XML Encryption 1.1 §5.2.2: the block of AES, the length of the IV, the unit of the ciphertext and the largest count of the padding (§5.2); `MIN_CIPHER_BYTES`, 32, is the IV and one block. |
+| The session key | exactly `keyBytes()` of the method | A longer key decrypts under `openssl_decrypt()`, GCM and CBC alike (measured); nothing but the exact length reaches it. |
 
 ## 8. What is refused, what is never called
 
-**Refused as input**, always, each with its named rule: `aes128-cbc`, `aes192-cbc`, `aes256-cbc`, `tripledes-cbc`, `aes192-gcm`, key wrapping (`kw-*`), key agreement, `rsa-1_5`, an `rsa-oaep` whose `DigestMethod` and `MGF` differ, a `DigestMethod` other than SHA-1 or an `MGF` under `rsa-oaep-mgf1p`, `OAEPparams`, a `Type` other than `Element`, `CipherReference`, `EncryptionProperties`, `ReferenceList`, `CarriedKeyName`, a second `EncryptedKey`, a `KeySize`, a key that is not RSA of at least 2048 bits.
+**Refused as input**, always, each with its named rule: `aes192-cbc`, `tripledes-cbc`, `aes192-gcm`; `aes128-cbc` and `aes256-cbc` given to `decrypt()`, or to `decryptCovered()` under a signature whose document does not hold them; key wrapping (`kw-*`), key agreement, `rsa-1_5`, an `rsa-oaep` whose `DigestMethod` and `MGF` differ, a `DigestMethod` other than SHA-1 or an `MGF` under `rsa-oaep-mgf1p`, `OAEPparams`, a `Type` other than `Element`, `CipherReference`, `EncryptionProperties`, `ReferenceList`, `CarriedKeyName`, a second `EncryptedKey`, a `KeySize`, a key that is not RSA of at least 2048 bits.
 
-**Never called, in the namespace**, enforced by the rules of `.ci-tools/phpstan-xml-security.neon`: `openssl_decrypt()` outside `Decryptor`, `openssl_encrypt()` outside `Encryptor`, `openssl_private_decrypt()` outside `PrivateDecryptionKey`, `openssl_public_encrypt()` outside `PeerKey`, `openssl_pkey_get_private()` and `openssl_pkey_get_public()` outside the two key classes; `openssl_private_encrypt()` and `openssl_public_decrypt()` (raw RSA); `openssl_cipher_iv_length()` and `openssl_cipher_key_length()` (the lengths are constants of this document, not answers of OpenSSL); `openssl_random_pseudo_bytes()` (`random_bytes()` is the source); `openssl_x509_*()`; `hash_hmac()`; the constants `OPENSSL_PKCS1_PADDING`, `OPENSSL_NO_PADDING`, `OPENSSL_ZERO_PADDING`; the token `cbc` anywhere in `src/Enc/`. Everything [core.md](core.md) section 8 bans is banned here too.
+**Never called, in the namespace**, enforced by the rules of `.ci-tools/phpstan-xml-security.neon`: `openssl_decrypt()` outside `Decryptor`, `openssl_encrypt()` outside `Encryptor`, `openssl_private_decrypt()` outside `PrivateDecryptionKey`, `openssl_public_encrypt()` outside `PeerKey`, `openssl_pkey_get_private()` and `openssl_pkey_get_public()` outside the two key classes; `openssl_private_encrypt()` and `openssl_public_decrypt()` (raw RSA); `openssl_cipher_iv_length()` and `openssl_cipher_key_length()` (the lengths are constants of this document, not answers of OpenSSL); `openssl_random_pseudo_bytes()` (`random_bytes()` is the source); `openssl_x509_*()`; `hash_hmac()`; the constants `OPENSSL_PKCS1_PADDING` and `OPENSSL_NO_PADDING`; `OPENSSL_ZERO_PADDING` outside `Decryptor`, where AES-CBC is decrypted without OpenSSL's padding check and written once (E-16), a confinement the rule of banned names of the same configuration holds for the whole package; `CbcContentAlgorithm`, and any name holding `Cbc` or `cbc`, in `Encryptor` and `PeerKey`, which write what the peer decrypts (E-15). `tests/xml-security/Enc/Unit/SourceGuardTest.php` reads the last two on the source too. Everything [core.md](core.md) section 8 bans is banned here too.
 
 ## 9. Acceptance
 
-The namespace is accepted when every case below is a green test in CI on PHP 8.4 and 8.5, when Infection leaves no escaped mutant in `Decryptor`, `Encryptor`, `EncryptedData`, `EncryptedKey`, `ContentAlgorithm`, `OaepHash`, `KeyTransport`, `PrivateDecryptionKey` and `PeerKey`, when the vectors of 9.1 decrypt, and when SimpleSAMLphp's library decrypts what the encryptor produces and the decryptor accepts what it encrypts (the judge of sub-spike 8e, 9.4). Two mutants are ignored by configuration, the `throw` of `AlgorithmUnavailable`, reached on PHP 8.4 only while the mutation job runs on 8.5, and the `throw` of `EncryptionFailed`, which the primitives never reach with a key the constructor accepted.
+The namespace is accepted when every case below is a green test in CI on PHP 8.4 and 8.5, when Infection leaves no escaped mutant in `Decryptor`, `Encryptor`, `EncryptedData`, `EncryptedKey`, `ContentAlgorithm`, `CbcContentAlgorithm`, `OaepHash`, `KeyTransport`, `PrivateDecryptionKey`, `PeerKey` and `Internal\BlockPadding`, the count of E-16, when the vectors of 9.1 decrypt, and when SimpleSAMLphp's library decrypts what the encryptor produces and the decryptor accepts what it encrypts (the judge of sub-spike 8e, 9.4). Two mutants are ignored by configuration, the `throw` of `AlgorithmUnavailable`, reached on PHP 8.4 only while the mutation job runs on 8.5, and the `throw` of `EncryptionFailed`, which the primitives never reach with a key the constructor accepted.
 
 ### 9.1 Vectors
 
@@ -361,6 +415,8 @@ The valid encryptions the decryptor must accept come from xmlsec1 1.3.7 on OpenS
 | The same under `rsa-oaep` with SHA-256 for the digest and MGF1 | a template naming `rsa-oaep` with a `DigestMethod` and an `MGF` of SHA-256, which xmlsec1 fills | decrypts on PHP 8.5; `AlgorithmUnavailable` on 8.4 |
 | A signed assertion encrypted, decrypted, then verified by `Dsig` with the test certificate | the signer of `Dsig` then xmlsec1 | the round trip of the SAML stack: decrypt, load, verify |
 | An assertion holding a comment | the same, a comment inside the `NameID` | decrypts with the comment: xmlsec1 keeps it in the plaintext |
+| The assertion under `aes128-cbc`, `rsa-oaep-mgf1p` without a `DigestMethod`, the shape SimpleSAMLphp's library writes | `--session-key aes-128-cbc`, a template naming `aes128-cbc` | decrypts under `decryptCovered()` with a signature whose document holds it (E-15); `decrypt()` refuses it by name |
+| The same under `aes256-cbc`, a `DigestMethod` of SHA-1 under `rsa-oaep-mgf1p`, the shape Entra and ADFS write | `--session-key aes-256-cbc`, a template naming `aes256-cbc` and that `DigestMethod` | decrypts under `decryptCovered()`: the SHA-1 of OAEP is kept (section 5.1) |
 
 ### 9.2 Hostile corpus
 
@@ -368,7 +424,7 @@ One fixture file per case under `tests/xml-security/Enc/Fixture/hostile/`, each 
 
 | Case | Exception |
 |---|---|
-| `EncryptionMethod` `aes128-cbc`, then `aes256-cbc`, then `tripledes-cbc` | `UnknownContentAlgorithm` (E-1) |
+| `EncryptionMethod` `tripledes-cbc`, then `aes192-cbc` | `UnknownContentAlgorithm` (E-1) |
 | `EncryptionMethod` `aes192-gcm` | `UnknownContentAlgorithm` |
 | The key's `EncryptionMethod` `rsa-1_5` | `UnknownKeyTransport` (E-1) |
 | The key's `EncryptionMethod` `kw-aes256` | `UnknownKeyTransport` |
@@ -400,7 +456,7 @@ One fixture file per case under `tests/xml-security/Enc/Fixture/hostile/`, each 
 | The plaintext an element without its namespace declaration, a `saml:Assertion` whose `xmlns:saml` was stripped before encryption | `ParserDiagnostic` from `Core` (E-9) |
 | A decryption key of 1024 bits, then an EC key, then a DSA key | `InvalidKey` (E-11) |
 | A peer certificate of 1024 bits, then an EC one | `InvalidKey` (E-11) |
-| Every failing fixture of the `DecryptionFailed` rows | the same message, `The data could not be decrypted (E-3).`, and no other property of the exception |
+| Every failing fixture of the `DecryptionFailed` rows | the same message, `The data could not be decrypted (E-3).`, and no other property of the exception; under AES-GCM and AES-CBC alike, the same line of `Decryptor` and, for one method, the same frames of the trace (section 6.1 step 9) |
 | The encrypted element from a document parsed outside the loader | `ForeignNode` |
 | `EncryptedKey::of()` or `KeyTransport::of()` on an element of a document parsed outside the loader, then on an element of another name | `ForeignNode`, then `MalformedEncryption` (E-5) |
 | An element inside a `CipherValue` | `MalformedEncryption` (E-5), never `Core`'s `MixedContent`: nothing was decrypted |
@@ -409,6 +465,13 @@ One fixture file per case under `tests/xml-security/Enc/Fixture/hostile/`, each 
 | OpenSSL's error queue after a `DecryptionFailed` whose unwrap failed | empty, as after a failed tag (E-3) |
 | `encrypt()` with a private key, a key and a certificate in either order, two certificates, text after the certificate, no content or content that is not base64, as `$certificatePem` | `InvalidKey` (E-14), before anything is canonicalized |
 | A peer key given as a `file://` path, with text before the armour, as two certificates, or as a public key to `fromCertificatePem()` | `InvalidKey` (E-11), nothing handed to OpenSSL |
+| The two AES-CBC vectors of 9.1 given to `decrypt()` | `CoveringSignatureRequired` (E-15), before any key is touched |
+| A vector of 9.1, AES-GCM or AES-CBC, given to `decryptCovered()` with a signature whose document is another one, the same bytes loaded again | `CoveringSignatureRequired` (E-15), before anything is read or any key touched |
+| AES-CBC: a cipher value of an IV alone; of an IV, a block and one byte | `MalformedEncryption` (E-2) |
+| AES-CBC: a 32-byte session key wrapped, the content encrypted under its first 16 bytes and declared `aes128-cbc` | `DecryptionFailed` (E-2): the length, before the primitive would have cut the key and decrypted |
+| AES-CBC: the content encrypted again with a count of 0, then of 17 | `DecryptionFailed` (E-16) |
+| AES-CBC, the vector altered: the octet that sets the count flipped, in the block before the last; the first octet of the ciphertext flipped, the count left in range and the first block garbled; the session key wrapped under the stranger's certificate | `DecryptionFailed` (E-16), the same message: a padding, a plaintext and a key fail alike |
+| AES-CBC: an authentic ciphertext whose plaintext holds a DOCTYPE; one whose plaintext is not XML | `DecryptionFailed` (E-16), never `Core`'s `DoctypeRefused` or `MalformedXml`: CBC authenticated nothing |
 
 ### 9.3 Behaviour corpus
 
@@ -434,13 +497,19 @@ One fixture file per case under `tests/xml-security/Enc/Fixture/hostile/`, each 
 | `encrypt()` of an element whose value names a prefix declared on an ancestor, `xsi:type="xs:string"` | the plaintext declares `xs`; decrypted alone, the prefix resolves (E-9) |
 | `encrypt()` of a built element whose namespace name holds an ampersand, which `C14N()` writes raw | `Core`'s refusal of the plaintext, before anything is encrypted (E-9) |
 | `encrypt()` of an element of more than the default `maxBytes`, with a consumer's loader at the ceiling | encrypted: the plaintext is held to the consumer's limits (E-9) |
+| AES-CBC under `decryptCovered()`: the content encrypted again with a count of 1, then of 16, a whole block of padding | decrypts: 1 to 16 is the range (E-16) |
+| AES-CBC under `decryptCovered()`: the padding of xmlsec1, random octets before the count; of xmlseclibs, the count repeated (section 9.4) | decrypts: nothing of the padding but the count is read (E-16) |
+| `BlockPadding::strip()` on a padded plaintext whose last octet is 0, 1, 16, 17 or 255 | the plaintext without 1 or 16 octets; `null` for the others (E-16) |
+| `CbcContentAlgorithm`: each case | its URI round-trips; `aes128-cbc` takes 16 bytes and `aes-128-cbc`, `aes256-cbc` 32 bytes and `aes-256-cbc` |
+| What the namespace encrypts under | every case of `ContentAlgorithm`, the one type `encrypt()` takes, is AES-GCM; no name holding `Cbc` or `cbc` in `Encryptor` or `PeerKey` (E-15): nothing is encrypted in CBC |
+| AES-GCM under `decryptCovered()` with a signature whose document holds it | decrypts as under `decrypt()` (E-15) |
 
 ### 9.4 Real documents
 
 Under `tests/xml-security/Enc/Fixture/real/`, each named with its origin and the date it was captured:
 
-- SimpleSAMLphp: what signs, verifies, encrypts and decrypts inside it is its library `simplesamlphp/saml2` on `xmlseclibs`, which names `aes128-gcm`, `aes256-gcm`, `rsa-oaep-mgf1p` and `rsa-oaep`. Its `EncryptedAssertion::setAssertion()` picks AES-128-CBC for the content whenever the key it is given is an RSA key (section 13), so the real fixture is what `XMLSecEnc` produces under the test certificate, an AES-GCM session key wrapped under RSA-OAEP, the shape the library reads back with `EncryptedAssertion::getAssertion()`. The decryptor accepts that fixture with the test key, and the reverse, the library decrypting what the encryptor produced, is recorded with its scripts next to those of `Dsig` in `tests/xml-security/Dsig/Fixture/real/simplesamlphp/`.
-- Entra and ADFS encrypt the assertions they issue with `aes256-cbc` under `rsa-oaep-mgf1p` when a tenant enables token encryption; decision 0013 refuses CBC, so those documents are refused by name (`UnknownContentAlgorithm`) and no capture is planned: the tenant leaves encryption off, and the question of section 12 records the trade-off.
+- SimpleSAMLphp: what signs, verifies, encrypts and decrypts inside it is its library `simplesamlphp/saml2` on `xmlseclibs`, which names `aes128-gcm`, `aes256-gcm`, `rsa-oaep-mgf1p` and `rsa-oaep`. Its `EncryptedAssertion::setAssertion()` picks AES-128-CBC for the content whenever the key it is given is an RSA key (section 13), so the real fixture is what `XMLSecEnc` produces under the test certificate, an AES-GCM session key wrapped under RSA-OAEP, the shape the library reads back with `EncryptedAssertion::getAssertion()`. The decryptor accepts that fixture with the test key, and the reverse, the library decrypting what the encryptor produced, is recorded with its scripts next to those of `Dsig` in `tests/xml-security/Dsig/Fixture/real/simplesamlphp/`. What `setAssertion()` writes by default, `aes128-cbc` under `rsa-oaep-mgf1p`, its padding the count repeated, is refused by `decrypt()` by name and decrypts under `decryptCovered()` with the test key (E-15, E-16): a padding written by another producer than xmlsec1.
+- Entra and ADFS encrypt the assertions they issue with `aes256-cbc` under `rsa-oaep-mgf1p` when a tenant enables token encryption; decision 0013 opens them under a signature that covers the encrypted element, the response's for a SAML consumer (E-15). The second AES-CBC vector of 9.1 carries their shape, the `DigestMethod` of SHA-1 included; a capture waits for the test tenant of sub-spike 9d (beffroi-auth/beffroi#665).
 
 ### 9.5 Performance
 
@@ -460,9 +529,10 @@ In the tree of [core.md](core.md) section 10:
 
 ```
 src/xml-security/spec/enc.md    this document
-src/xml-security/src/Enc/       ContentAlgorithm, OaepHash, KeyTransport, DecryptionKeyInterface, PrivateDecryptionKey,
-                                PeerKey, EncryptedData, EncryptedKey, Decryptor, Encryptor, Exception/, Internal/ (the names,
-                                the base64 and the structure helpers, as Dsig has them)
+src/xml-security/src/Enc/       ContentAlgorithm, CbcContentAlgorithm, OaepHash, KeyTransport, DecryptionKeyInterface,
+                                CoveringSignatureInterface, PrivateDecryptionKey, PeerKey, EncryptedData, EncryptedKey,
+                                Decryptor, Encryptor, Exception/, Internal/ (the names, the base64 and the structure helpers,
+                                as Dsig has them, and the padding of AES-CBC)
 tests/xml-security/Enc/         Unit/ (one class per class of src/Enc/, plus TraceabilityTest, SourceGuardTest,
                                 AdversarialTest, RealDocumentsTest, PerformanceTest, Regression/), Support/, Fixture/ (vectors,
                                 hostile, behaviour, real, oracle: the xmlsec1 check of 9.3, each directory with a README
@@ -474,7 +544,7 @@ tests/xml-security/Enc/         Unit/ (one class per class of src/Enc/, plus Tra
 
 ## 11. Out of scope
 
-- CBC and 3DES, and with them the encrypted assertions of Entra and ADFS as their tenants configure them today (section 12).
+- 3DES and `aes192-cbc`; AES-CBC outside a signature that covers it (E-15); encrypting in CBC.
 - RSA PKCS#1 v1.5 key transport, key wrapping (`kw-aes128`, `kw-aes256`), key agreement (ECDH-ES, DH), `EncryptedKey` chains.
 - `Type` other than `Element`: the encryption of content, of attributes, of arbitrary octets.
 - `CipherReference`, `EncryptionProperties`, `ReferenceList`, `CarriedKeyName`, `Recipient`.
@@ -484,7 +554,7 @@ tests/xml-security/Enc/         Unit/ (one class per class of src/Enc/, plus Tra
 ## 12. Left to the sub-spike
 
 - Whether the `EncryptedKey` next to the `EncryptedData`, the sibling form SAML Core §6.1 also allows, is accepted, once a real producer that uses it is captured.
-- CBC and the interoperability targets: Entra and ADFS encrypt under `aes256-cbc`; decision 0013 refuses CBC. The trade-off, the SP role refusing their encrypted assertions against a padding oracle the profile would have to close some other way, is the product's, recorded on the epic. **Answered on 14 October 2026** (decision 0013, beffroi-php/beffroi#689): AES-CBC is decrypted only once a signature verified under a key of the peer's metadata covers the encrypted element, the signature of the `Response` for an `EncryptedAssertion`, and is refused by name otherwise, before any decryption; nothing is encrypted in CBC. E-1 and section 6 change with the code, in sub-spike 9d.
+- CBC and the interoperability targets: Entra and ADFS encrypt under `aes256-cbc`; decision 0013 refuses CBC. The trade-off, the SP role refusing their encrypted assertions against a padding oracle the profile would have to close some other way, is the product's, recorded on the epic. **Answered on 14 October 2026** (decision 0013, beffroi-php/beffroi#689): AES-CBC is decrypted only once a signature verified under a key of the peer's metadata covers the encrypted element, the signature of the `Response` for an `EncryptedAssertion`, and is refused by name otherwise, before any decryption; nothing is encrypted in CBC. E-1 and section 6 change with the code, in sub-spike 9d. **Built on 22 October 2026** by beffroi-auth/beffroi#689: `CbcContentAlgorithm` read by the model, `Decryptor::decryptCovered()` and its proof, `CoveringSignatureInterface`, the only way to AES-CBC (E-15), and one failure under CBC, the refusal of the plaintext included (E-16).
 - The plaintext of a producer that drives xmlsec1 on an element nested in a document that declares its namespace for it, as pysaml2 does: xmlsec1 dumps the element without the declarations it inherits (section 13), and E-9 refuses that plaintext, since parsing it back in the context of the encrypted document, as xmlsec1 does, would make the plaintext depend on the document around it. The trade-off is the product's, like CBC: recorded on the epic. **Answered on 14 October 2026** (beffroi-php/beffroi#690): E-9 stands, the plaintext is loaded on its own; XML Encryption 1.1 makes the parsing in context of its §4.5 optional, and OpenSAML and xmlseclibs parse the plaintext alone. The exception is written now and built once a capture needs it, in sub-spike 9d: a plaintext refused for an unbound prefix is loaded again once under a root that declares fixed prefixes (`saml`, `xsi`, `xs`, `ds`), never the declarations of the document received, so that its meaning still depends on nothing the signature does not cover; it belongs to `saml2-model` (its section 6.7), which then needs the plaintext the decryptor refused.
 
 ## 13. Sources
@@ -511,5 +581,8 @@ tests/xml-security/Enc/         Unit/ (one class per class of src/Enc/, plus Tra
 - xmlsec1 1.3.7 encrypts a `saml:Assertion` from a template holding `aes256-gcm`, `rsa-oaep-mgf1p` and the test certificate (`--encrypt --lax-key-search --pubkey-cert-pem cert.pem --session-key aes-256-gcm --xml-data data.xml`), `--node-id` naming the element of the data file to encrypt, and its output is the data file with that element replaced by the filled template; it fills a template naming `rsa-oaep` with a `DigestMethod` and an `MGF` of SHA-256 as well, and decrypts its own output with the private key to the same bytes, a comment inside the plaintext included. The plaintext it encrypts is the element dumped with the namespace declarations the element itself carries and none it inherits: an assertion nested in a response that declares `xmlns:saml` for it is encrypted without the declaration, and xmlsec1 reads it back only because it parses the plaintext in the context of the parent. The vectors of 9.1 declare `xmlns:saml` on the assertion; the nested form without it is the hostile case of E-9.
 - xmlseclibs 3.1.5 names `AES128_GCM`, `AES192_GCM`, `AES256_GCM`, `AES128_CBC`, `AES192_CBC`, `AES256_CBC`, `TRIPLEDES_CBC`, `RSA_OAEP_MGF1P` and `RSA_OAEP`, and its `XMLSecEnc::encryptKey()` writes the `EncryptionMethod` of an `EncryptedKey` with no child under both RSA-OAEP names, SHA-1 for the hash and the MGF by default. `simplesamlphp/saml2` 4.20.3's `EncryptedAssertion::setAssertion()` wraps an AES-128-CBC session key when the key it is given is an RSA key, and shares the symmetric key with no `EncryptedKey` when it is an AES key: AES-GCM under RSA-OAEP comes from `XMLSecEnc::encryptKey()` then `encryptNode()`, called directly.
 - `simplesamlphp/saml2` 4.20.3 on xmlseclibs 3.1.5 decrypts what the encryptor produced under both content algorithms and the `aes256-gcm` vector of xmlsec1 (`Message::fromXML()`, `EncryptedAssertion::getAssertion()`), refuses the `rsa-oaep` vector with SHA-256, since it unwraps under SHA-1 only, and refuses the fixture with the truncated tag; `XMLSecEnc::encryptKey()` then `encryptNode()` produce `aes256-gcm` and `aes128-gcm` under `rsa-oaep-mgf1p`, the `EncryptedKey` inside a `dsig:KeyInfo` with no hint, which the decryptor accepts. Decrypting the assertion xmlseclibs encrypted, the load included, takes half a millisecond on a laptop, PHP 8.4.25.
-- Microsoft Entra ID's token encryption and ADFS's assertion encryption use `aes256-cbc` with `rsa-oaep-mgf1p`, per their documentation; neither offers GCM.
+- Microsoft Entra ID's token encryption and ADFS's assertion encryption use `aes256-cbc` with `rsa-oaep-mgf1p`, per their documentation; neither offers GCM. Both sign the response over its ciphertext when told to, Entra's "Sign SAML response and assertion" and ADFS's `-SamlResponseSignature MessageAndAssertion`, the condition E-15 sets (decision 0013).
+- On 22 October 2026, in the same images (PHP 8.5.11 and 8.4.25, OpenSSL 3.5.7): `openssl_decrypt()` in `aes-128-cbc` returns the plaintext under a 32-byte key whose first 16 bytes are the key, the rest ignored, and `false` under a 16-byte key declared `aes-256-cbc`; with `OPENSSL_ZERO_PADDING`, it returns the padded plaintext, of the ciphertext's length, and `false` on a ciphertext that is not whole blocks; an IV of 12 bytes is padded with zeros under a warning, and decrypts.
+- On 22 October 2026, xmlsec1 1.3.7 in Alpine 3.22 encrypts the assertion of 9.1 under `aes128-cbc` and `aes256-cbc` (`--session-key aes-128-cbc`, `aes-256-cbc`), a `DigestMethod` of SHA-1 under `rsa-oaep-mgf1p` kept from the template, and decrypts both back to their data file. Its padding is random octets ended by their count (eleven octets in the `aes256-cbc` vector, `0b` last and ten at random before it): what XML Encryption 1.1 §5.2 allows and OpenSSL's PKCS#7 check refuses. xmlseclibs 3.1.5 repeats the count (nine octets `09` in the real document of 9.4), which PKCS#7 would accept too.
+- On 22 October 2026, PHP 8.5.12 and OpenSSL 4.0.3 on an Apple M4, medians of the four outcomes of AES-CBC interleaved over 5 000 runs: on the `aes128-cbc` vector of 9.1, a cipher value of 1 488 bytes, a wrong key 335 µs, a count out of range 333 µs, a first block garbled, its count left in range, 345 µs, a success 419 µs; the unwrap is the cost, the decryption and the reading of the count are under the noise, and the load a garbled block reaches costs some 10 µs before its first fault. On a cipher value of 906 352 bytes, a wrong key that stops after the unwrap takes 338 µs against 401 µs for a count out of range, the AES pass showing; replaced by random bytes as E-16 says, the wrong key takes 408 µs.
 - From the sources, not measured: OpenSAML's default `RSAOAEPParameters` name SHA-1 for the digest and `mgf1sha1` for the MGF, and Santuario writes that `DigestMethod` under `rsa-oaep-mgf1p`, which is the shape of an assertion Shibboleth encrypts, under `aes128-gcm` by default since its IdP version 4; .NET's `EncryptedXml`, behind ADFS and Entra, writes the same child.
