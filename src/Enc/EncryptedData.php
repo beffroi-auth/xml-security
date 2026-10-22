@@ -9,6 +9,7 @@ use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Core\Exception\ForeignNode;
 use Beffroi\Xml\Enc\Exception\LimitExceeded;
 use Beffroi\Xml\Enc\Exception\MalformedEncryption;
+use Beffroi\Xml\Enc\Exception\UnknownContentAlgorithm;
 use Beffroi\Xml\Enc\Internal\CipherData;
 use Beffroi\Xml\Enc\Internal\Names;
 use Beffroi\Xml\Enc\Internal\Structure;
@@ -17,10 +18,11 @@ use function strlen;
 
 /**
  * The xenc:EncryptedData element read strictly (section 5.3, E-5), nothing decrypted: a Type of Element, an
- * EncryptionMethod of the closed list with no child (E-1), a KeyInfo holding exactly one EncryptedKey, a CipherData
- * holding a CipherValue long enough for an IV, a byte of ciphertext and a tag (E-2); CipherReference,
- * EncryptionProperties and everything else refused. A consumer may read an encrypted element without decrypting it;
- * only Decryptor decrypts.
+ * EncryptionMethod of the closed lists with no child, AES-GCM or AES-CBC (E-1), a KeyInfo holding exactly one
+ * EncryptedKey, a CipherData holding a CipherValue long enough for an IV, a byte of ciphertext and a tag under AES-GCM,
+ * an IV and whole blocks under AES-CBC (E-2); CipherReference, EncryptionProperties and everything else refused. A
+ * consumer may read an encrypted element without decrypting it; only Decryptor decrypts, and AES-CBC only under a
+ * signature that covers it (E-15).
  */
 final readonly class EncryptedData
 {
@@ -30,11 +32,12 @@ final readonly class EncryptedData
     public const int MIN_CIPHER_BYTES = ContentAlgorithm::IV_BYTES + 1 + ContentAlgorithm::TAG_BYTES;
 
     /**
-     * @param string $cipherValue decoded: the IV, the ciphertext and the tag, in that order (XML Encryption 1.1 §5.2.4)
+     * @param string $cipherValue decoded: the IV, the ciphertext and the tag, in that order, under AES-GCM (XML
+     *                            Encryption 1.1 §5.2.4); the IV and the ciphertext under AES-CBC (§5.2.2)
      */
     public function __construct(
         public Element $element,
-        public ContentAlgorithm $algorithm,
+        public ContentAlgorithm|CbcContentAlgorithm $algorithm,
         public EncryptedKey $key,
         public string $cipherValue,
     ) {
@@ -72,7 +75,11 @@ final readonly class EncryptedData
         $value = CipherData::valueOf(
             Structure::one($element, $cipherData, 'An EncryptedData holds exactly one CipherData (E-5).'),
         );
-        if (strlen($value) < self::MIN_CIPHER_BYTES) {
+        if ($algorithm instanceof CbcContentAlgorithm) {
+            if (strlen($value) < CbcContentAlgorithm::MIN_CIPHER_BYTES || (strlen($value) % CbcContentAlgorithm::BLOCK_BYTES) !== 0) {
+                throw new MalformedEncryption('The cipher value of an AES-CBC EncryptedData holds an IV of 16 bytes and whole blocks of 16 bytes, at least one (E-2).');
+            }
+        } elseif (strlen($value) < self::MIN_CIPHER_BYTES) {
             throw new MalformedEncryption('The cipher value of an EncryptedData holds an IV of 12 bytes, at least one byte of ciphertext and a tag of 16 bytes (E-2).');
         }
 
@@ -81,16 +88,18 @@ final readonly class EncryptedData
 
     /**
      * @throws MalformedEncryption
-     * @throws Exception\UnknownContentAlgorithm
+     * @throws UnknownContentAlgorithm
      */
-    private static function algorithm(Element $encryptionMethod): ContentAlgorithm
+    private static function algorithm(Element $encryptionMethod): ContentAlgorithm|CbcContentAlgorithm
     {
-        $algorithm = ContentAlgorithm::fromUri(
-            Attributes::optional(
-                $encryptionMethod,
-                Names::attribute('Algorithm'),
-            ) ?? throw new MalformedEncryption('An EncryptionMethod names its Algorithm (E-5).'),
-        );
+        $uri = Attributes::optional(
+            $encryptionMethod,
+            Names::attribute('Algorithm'),
+        ) ?? throw new MalformedEncryption('An EncryptionMethod names its Algorithm (E-5).');
+        $algorithm =
+            ContentAlgorithm::tryFrom($uri)
+            ?? CbcContentAlgorithm::tryFrom($uri)
+            ?? throw new UnknownContentAlgorithm('The content algorithm is not AES-128-GCM, AES-256-GCM, AES-128-CBC or AES-256-CBC (E-1).');
         Structure::none($encryptionMethod, 'The EncryptionMethod of an EncryptedData holds no child (E-5).');
 
         return $algorithm;
