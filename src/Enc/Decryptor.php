@@ -12,6 +12,7 @@ use Beffroi\Xml\Enc\Exception\AlgorithmUnavailable;
 use Beffroi\Xml\Enc\Exception\CoveringSignatureRequired;
 use Beffroi\Xml\Enc\Exception\DecryptionFailed;
 use Beffroi\Xml\Enc\Internal\BlockPadding;
+use Beffroi\Xml\Enc\Internal\LoadedPlaintext;
 use Dom\Element;
 use function openssl_decrypt;
 use const OPENSSL_RAW_DATA;
@@ -58,43 +59,62 @@ final readonly class Decryptor
             throw new CoveringSignatureRequired('AES-CBC is decrypted only under a verified signature that covers the encrypted element (E-15).');
         }
 
-        return $this->open($data, $key);
+        return $this->open($data, $key, new LoadedPlaintext());
     }
 
     /**
-     * AES-GCM as decrypt() opens it, and AES-CBC, once $signature covers $encrypted: the element is a node of the
-     * document the signature covers (E-15). Under AES-CBC, a plaintext Core refuses is the one failure (E-16).
+     * AES-GCM as decrypt() opens it, and AES-CBC, once $signature covers $encrypted: the element is a descendant of the
+     * root of the document the signature covers (E-15). The plaintext is read by $reader inside the decryption, and what
+     * it reads is returned; under AES-CBC, a plaintext Core refuses and every refusal of $reader are the one failure,
+     * from the one place of open() (E-16).
+     *
+     * @template T
      *
      * @param Element $encrypted the xenc:EncryptedData element, the child of a saml:EncryptedAssertion
+     * @param DecryptionKeyInterface $key the key whose certificate went to the peer whose signature $signature is, and
+     *                                    to no other peer (E-15)
      * @param CoveringSignatureInterface $signature the proof the consumer built from a verification, and from nothing else
+     * @param PlaintextReaderInterface<T> $reader the consumer's reading of the plaintext
      *
-     * @throws CoveringSignatureRequired when $encrypted is not a node of the document $signature covers (E-15)
+     * @return T
+     *
+     * @throws CoveringSignatureRequired when $encrypted is not a descendant of the root of the document $signature
+     *                                   covers (E-15)
      * @throws Exception\EncryptionRefused one of its subclasses naming the rule (E-12), or the one failure (E-3)
      * @throws AlgorithmUnavailable a hash this build cannot unwrap under, before any key is touched
      * @throws ForeignNode when $encrypted is not of a document of the brick
-     * @throws RefusedXml what Core refuses of an AES-GCM plaintext (E-4)
+     * @throws RefusedXml what Core and $reader refuse of an AES-GCM plaintext (E-4)
      */
     public function decryptCovered(
         Element $encrypted,
         DecryptionKeyInterface $key,
         CoveringSignatureInterface $signature,
-    ): Document {
-        if (Document::owning($encrypted) !== $signature->document()) {
+        PlaintextReaderInterface $reader,
+    ): mixed {
+        $covered = $signature->document();
+        // a node of the covered document that its root does not hold, removed or never put in the tree, was not signed
+        if (Document::owning($encrypted) !== $covered || ! $covered->root()->contains($encrypted)) {
             throw new CoveringSignatureRequired('The encrypted element is not a node of the document the signature covers (E-15).');
         }
 
-        return $this->open(EncryptedData::of($encrypted), $key);
+        return $this->open(EncryptedData::of($encrypted), $key, $reader);
     }
 
     /**
      * Section 6.1 steps 4 to 9: every failure of the session key, of the content, of the padding and, under AES-CBC,
-     * of the plaintext ends in the one throw of this method, so that the line and the trace of the exception say
-     * nothing of which step failed (E-3).
+     * of the plaintext and of its reading ends in the one throw of this method, so that the line and the trace of the
+     * exception say nothing of which step failed (E-3, E-16).
+     *
+     * @template T
+     *
+     * @param PlaintextReaderInterface<T> $reader
+     *
+     * @return T
      *
      * @throws Exception\EncryptionRefused
      * @throws RefusedXml
      */
-    private function open(EncryptedData $data, DecryptionKeyInterface $key): Document
+    private function open(EncryptedData $data, DecryptionKeyInterface $key, PlaintextReaderInterface $reader): mixed
     {
         $hash = $data->key->transport->hash;
         if (! $hash->isAvailable()) {
@@ -105,30 +125,38 @@ final readonly class Decryptor
         // the length before the primitive, which accepts a longer key and says nothing (E-2, section 13)
         $sessionKey = $unwrapped !== null && strlen($unwrapped) === $algorithm->keyBytes() ? $unwrapped : null;
         if ($algorithm instanceof ContentAlgorithm) {
-            $document = $sessionKey === null ? null : $this->gcm($data->cipherValue, $algorithm, $sessionKey);
+            $read = $sessionKey === null ? null : $this->gcm($data->cipherValue, $algorithm, $sessionKey, $reader);
         } else {
             // a key that does not unwrap is replaced by random bytes, and the content opened all the same: a wrong
             // key costs what a wrong padding does (E-16, section 13)
-            $document = $this->cbc($data->cipherValue, $algorithm, $sessionKey ?? random_bytes($algorithm->keyBytes()));
+            $read = $this->cbc($data->cipherValue, $algorithm, $sessionKey ?? random_bytes($algorithm->keyBytes()), $reader);
         }
-        if ($sessionKey === null || ! $document instanceof Document) {
+        if ($sessionKey === null || $read === null) {
             throw new DecryptionFailed();
         }
 
-        return $document;
+        return $read[0];
     }
 
     /**
      * Section 6.1 steps 6 and 8, AES-GCM: the IV first, the tag last, the ciphertext between; the model refused a value
      * too short for the three (E-2), and GCM keeps the length, so a plaintext that comes back is never empty (section
-     * 9.2, row 26). What Core refuses of the plaintext is Core's refusal (E-4).
+     * 9.2, row 26). What Core and the reader refuse of the plaintext is their refusal (E-4).
      *
-     * @return ?Document null when the tag or the ciphertext is refused (E-3)
+     * @template T
+     *
+     * @param PlaintextReaderInterface<T> $reader
+     *
+     * @return ?array{T} what the reader read, null when the tag or the ciphertext is refused (E-3)
      *
      * @throws RefusedXml
      */
-    private function gcm(string $cipherValue, ContentAlgorithm $algorithm, string $sessionKey): ?Document
-    {
+    private function gcm(
+        string $cipherValue,
+        ContentAlgorithm $algorithm,
+        string $sessionKey,
+        PlaintextReaderInterface $reader,
+    ): ?array {
         $plaintext = self::content(
             substr($cipherValue, ContentAlgorithm::IV_BYTES, -ContentAlgorithm::TAG_BYTES),
             $algorithm->cipher(),
@@ -138,18 +166,27 @@ final readonly class Decryptor
             substr($cipherValue, -ContentAlgorithm::TAG_BYTES),
         );
 
-        return $plaintext === null ? null : $this->loader->load($plaintext);
+        return $plaintext === null ? null : [$reader->read($this->loader->load($plaintext))];
     }
 
     /**
      * Section 6.1 steps 6 to 8, AES-CBC: the IV first, whole blocks after it (E-2); no padding removed by OpenSSL,
      * whose PKCS#7 check refuses the padding of XML Encryption, the count read by BlockPadding and nothing else; a
-     * plaintext Core refuses is a failure like the others, CBC having authenticated nothing (E-16).
+     * plaintext Core refuses and every refusal of the reader are failures like the others, CBC having authenticated
+     * nothing (E-16).
      *
-     * @return ?Document null for a padding, a plaintext or a content refused
+     * @template T
+     *
+     * @param PlaintextReaderInterface<T> $reader
+     *
+     * @return ?array{T} what the reader read, null for a content, a padding, a plaintext or a reading refused
      */
-    private function cbc(string $cipherValue, CbcContentAlgorithm $algorithm, string $sessionKey): ?Document
-    {
+    private function cbc(
+        string $cipherValue,
+        CbcContentAlgorithm $algorithm,
+        string $sessionKey,
+        PlaintextReaderInterface $reader,
+    ): ?array {
         $padded = self::content(
             substr($cipherValue, CbcContentAlgorithm::BLOCK_BYTES),
             $algorithm->cipher(),
@@ -163,7 +200,7 @@ final readonly class Decryptor
             return null;
         }
         try {
-            return $this->loader->load($plaintext);
+            return [$reader->read($this->loader->load($plaintext))];
         } catch (RefusedXml) {
             return null;
         }
