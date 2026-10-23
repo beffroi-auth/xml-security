@@ -1,6 +1,6 @@
 # beffroi/xml-security
 
-Part of [beffroi/framework](https://github.com/beffroi-php/beffroi), developed in `src/xml-security` of that monorepo; this repository is its
+Part of [beffroi/framework](https://github.com/beffroi-auth/beffroi), developed in `src/xml-security` of that monorepo; this repository is its
 read-only split. Issues and pull requests go to the monorepo.
 
 XML security for PHP, in one package and three namespaces: `Core`, a safe DOM for XML that is about to be signed,
@@ -166,9 +166,9 @@ suite on PHP 8.5 and on PHP 8.4.
 
 ## Security
 
-See the [security policy](https://github.com/beffroi-php/beffroi/blob/0.0.x/SECURITY.md) of the monorepo: private reporting, an advisory and a CVE for
+See the [security policy](https://github.com/beffroi-auth/beffroi/blob/0.0.x/SECURITY.md) of the monorepo: private reporting, an advisory and a CVE for
 every fix.
 
 ## License
 
-MIT, see the [LICENSE](https://github.com/beffroi-php/beffroi/blob/0.0.x/LICENSE) of the monorepo.
+MIT, see the [LICENSE](https://github.com/beffroi-auth/beffroi/blob/0.0.x/LICENSE) of the monorepo.
