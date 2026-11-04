@@ -8,8 +8,7 @@ use InvalidArgumentException;
 use function sprintf;
 
 /**
- * The six bounds of section 7: each a quantity a caller may raise up to its ceiling for a documented reason, never a
- * switch that removes a check (I-7).
+ * Section 7, I-7
  */
 final readonly class Limits
 {

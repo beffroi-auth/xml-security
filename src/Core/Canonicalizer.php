@@ -18,23 +18,20 @@ use function libxml_use_internal_errors;
 use function sprintf;
 
 /**
- * The only place of the stack that calls C14N() (I-13), in the order of section 6.3: the apex is the brick's and
- * connected, every excluded element is a strict descendant, each is detached and reinserted at its position in a
- * finally, and a false return is a refusal. The document is mutated for the duration of the call only, and is
- * identical before and after it, whether the call succeeds or fails (I-14).
+ * Section 6.3, I-13, I-14
  */
 final readonly class Canonicalizer
 {
     private const string XMLNS = 'http://www.w3.org/2000/xmlns/';
 
     /**
-     * The canonical form of $apex and its subtree, without the subtrees of $excluding.
+     * @param list<Element> $excluding strict descendants of $apex
      *
-     * @param list<Element> $excluding strict descendants of $apex left out, as the enveloped signature transform leaves out ds:Signature
-     *
-     * @throws CanonicalizationFailed when libxml returns false or an empty string
-     * @throws ForeignNode when $apex does not belong to a document of the brick
-     * @throws InvalidArgumentException when $apex is not connected to its document, when an element of its subtree without a prefix has no xmlns attribute in scope declaring its namespace, when an excluded element is not a strict descendant of $apex or is listed twice, or when $inclusiveNamespaces is not empty for an inclusive method
+     * @throws CanonicalizationFailed
+     * @throws ForeignNode
+     * @throws InvalidArgumentException when $apex is not connected, a default namespace is undeclared, an
+     *                                   excluded element is not a strict descendant or is listed twice, or
+     *                                   $inclusiveNamespaces is not empty for an inclusive method
      */
     public function canonicalize(
         Element $apex,
@@ -43,7 +40,7 @@ final readonly class Canonicalizer
         array $excluding = [],
     ): CanonicalXml {
         Document::owning($apex);
-        // removal from a parent does not clear ownerDocument; PHP itself refuses to canonicalize a detached node
+        // Removal from a parent does not clear ownerDocument, and PHP refuses to canonicalize a detached node.
         if (! $apex->isConnected) {
             throw new InvalidArgumentException('The apex is not connected to its document (section 6.3).');
         }
@@ -55,7 +52,7 @@ final readonly class Canonicalizer
 
         $previous = libxml_use_internal_errors(true);
         libxml_clear_errors();
-        /** @var list<array{Element, Node, ?Node}> $detached each with its parent and its next sibling */
+        /** @var list<array{Element, Node, ?Node}> $detached */
         $detached = [];
         try {
             foreach ($exclusions as [$element, $parent]) {
@@ -86,18 +83,14 @@ final readonly class Canonicalizer
     }
 
     /**
-     * Section 6.3 step 2: every element of the apex's subtree that has no prefix is in the default namespace the
-     * xmlns attributes in scope declare, the ancestors of the apex included, a child in no namespace under a default
-     * namespace carrying its own xmlns="". C14N() renders the declarations that exist as attributes, or that PHP
-     * materialises for a prefixed name: a default namespace given to createElementNS() without one is a namespace
-     * the canonical form silently loses (measured, section 13). A loaded document always passes, the parser
-     * materialises every declaration; only a built one can fail, a programming error of its builder, never input.
+     * Section 6.3 step 2: C14N() silently loses a default namespace given to createElementNS() without an xmlns
+     * attribute (section 13).
      *
      * @throws InvalidArgumentException
      */
     private static function refuseUndeclaredDefaultNamespace(Element $apex): void
     {
-        /** @var list<array{Element, ?string}> $stack each element with the default namespace declared above it, '' for xmlns="" */
+        /** @var list<array{Element, ?string}> $stack */
         $stack = [[$apex, self::defaultNamespaceAbove($apex)]];
         while ($stack !== []) {
             [$element, $inherited] = array_pop($stack);
@@ -112,8 +105,7 @@ final readonly class Canonicalizer
     }
 
     /**
-     * The value of the nearest xmlns attribute on the ancestors of $element, '' for xmlns="", null when none
-     * declares one.
+     * The nearest xmlns above $element: '' for xmlns="", null when none declares one.
      */
     private static function defaultNamespaceAbove(Element $element): ?string
     {
@@ -128,7 +120,7 @@ final readonly class Canonicalizer
     }
 
     /**
-     * Every excluded element with its parent, checked before anything is detached (section 6.3 step 3).
+     * Section 6.3 step 3
      *
      * @param list<Element> $excluding
      *

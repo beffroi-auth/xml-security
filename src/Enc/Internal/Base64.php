@@ -12,25 +12,22 @@ use function sprintf;
 use function strlen;
 
 /**
- * The base64 of a CipherValue, decoded strictly after whitespace removal (E-7), the text bounded before anything is
- * decoded (E-13). XML Encryption writes base64 with line breaks every 76 characters; a character outside the
- * alphabet, padding out of place, or an empty value is a refusal, never a byte skipped.
+ * The base64 of a CipherValue, bounded first (E-13), then decoded strictly once whitespace is removed (E-7).
  *
  * @internal outside the compatibility promise of section 5
  */
 final readonly class Base64
 {
     /**
-     * Section 7: the text of a CipherValue, whitespace included, before decoding.
+     * Section 7: the text of a CipherValue, whitespace included.
      */
     public const int MAX_TEXT_BYTES = 2_097_152;
 
     /**
-     * @param positive-int $maxTextBytes the bound of section 7 the text is held to, before anything is decoded
-     * @param string $bound the name section 7 gives it
+     * @param positive-int $maxTextBytes
      *
-     * @throws LimitExceeded when the text is longer than $maxTextBytes
-     * @throws MalformedEncryption when the text holds a character outside the alphabet or is empty
+     * @throws LimitExceeded
+     * @throws MalformedEncryption
      */
     public static function decode(
         string $text,

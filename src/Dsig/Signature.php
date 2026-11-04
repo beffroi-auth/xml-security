@@ -16,14 +16,14 @@ use function sprintf;
 use function strlen;
 
 /**
- * The ds:Signature element read strictly (section 5.3, D-9), nothing computed: SignedInfo, SignatureValue and an
- * optional KeyInfo that is never read (D-7); Object and everything else refused. A consumer may read a signature
- * without verifying it; only Verifier verifies.
+ * Section 5.3
+ *
+ * Reading a signature verifies nothing: only Verifier verifies, and the KeyInfo is never read (D-7).
  */
 final readonly class Signature
 {
     /**
-     * Section 7: the decoded SignatureValue, from an RSA-2048 signature to an RSA-8192 one.
+     * Section 7: the decoded SignatureValue of an RSA-2048 signature.
      */
     public const int MIN_SIGNATURE_BYTES = 256;
 
@@ -37,12 +37,11 @@ final readonly class Signature
     }
 
     /**
-     * @throws MalformedSignature when the structure, an algorithm, a transform, a URI or a base64 text is not what
-     *                            section 5.3 says
+     * @throws MalformedSignature
      * @throws Exception\UnknownSignatureAlgorithm
      * @throws Exception\UnknownDigestAlgorithm
      * @throws LimitExceeded
-     * @throws ForeignNode when $element is not of a document of the brick
+     * @throws ForeignNode
      */
     public static function of(Element $element): self
     {

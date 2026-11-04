@@ -7,14 +7,8 @@ namespace Beffroi\Xml\Core;
 use Dom\Attr;
 use Dom\Element;
 
-/**
- * The name of an element or an attribute: a namespace URI and a local name, never a prefix (I-10).
- */
 final readonly class Name
 {
-    /**
-     * @param ?string $namespace null when the node is in no namespace (an unprefixed attribute, an element under xmlns="")
-     */
     public function __construct(
         public ?string $namespace,
         public string $local,
@@ -27,7 +21,7 @@ final readonly class Name
     }
 
     /**
-     * The namespace URI and the local name of the node, never its prefix.
+     * I-10
      */
     public function matches(Element|Attr $node): bool
     {

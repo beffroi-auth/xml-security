@@ -15,8 +15,7 @@ use Beffroi\Xml\Dsig\Internal\Structure;
 use Dom\Element;
 
 /**
- * The ds:SignedInfo of a Signature, read strictly (section 5.3): an exclusive canonicalization method (D-4), a
- * signature method of the closed list (D-5), exactly one Reference (D-2), and no other child (D-9).
+ * Section 5.3
  */
 final readonly class SignedInfo
 {
@@ -34,7 +33,7 @@ final readonly class SignedInfo
      * @throws Exception\UnknownSignatureAlgorithm
      * @throws Exception\UnknownDigestAlgorithm
      * @throws Exception\LimitExceeded
-     * @throws ForeignNode when $element is not of a document of the brick
+     * @throws ForeignNode
      */
     public static function of(Element $element): self
     {

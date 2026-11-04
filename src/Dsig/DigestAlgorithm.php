@@ -11,8 +11,7 @@ use const OPENSSL_ALGO_SHA384;
 use const OPENSSL_ALGO_SHA512;
 
 /**
- * The closed list of digest methods (D-5): SHA-256 of XML Signature 1.1 §6.2, SHA-384 and SHA-512 of RFC 6931
- * §2.1. SHA-1, MD5 and every unknown URI are refused by fromUri().
+ * D-5, XML Signature 1.1 §6.2, RFC 6931 §2.1
  */
 enum DigestAlgorithm: string
 {
@@ -21,7 +20,7 @@ enum DigestAlgorithm: string
     case Sha512 = 'http://www.w3.org/2001/04/xmlenc#sha512';
 
     /**
-     * @throws UnknownDigestAlgorithm for every other URI
+     * @throws UnknownDigestAlgorithm
      */
     public static function fromUri(string $uri): self
     {
@@ -56,9 +55,6 @@ enum DigestAlgorithm: string
         };
     }
 
-    /**
-     * What openssl_sign() and openssl_verify() take.
-     */
     public function opensslAlgorithm(): int
     {
         return match ($this) {

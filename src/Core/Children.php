@@ -13,14 +13,12 @@ use Dom\Element;
 use function sprintf;
 
 /**
- * Direct-child navigation, and nothing that searches descendants (I-11, section 6.4): an element wrapped inside
- * another is not a child of the root and is never found by a consumer that navigates from it, which is what a
- * signature wrapping relies on. Names match on namespace URI and local name (I-10).
+ * Direct children only, never a search of descendants, which is what a signature wrapping relies on (I-11).
  */
 final class Children
 {
     /**
-     * @return list<Element> the element children of $parent, in document order
+     * @return list<Element> in document order
      */
     public static function all(Element $parent): array
     {
@@ -41,8 +39,8 @@ final class Children
     }
 
     /**
-     * @throws MissingChild when $parent has no child of that name
-     * @throws AmbiguousChild when it has two or more
+     * @throws MissingChild
+     * @throws AmbiguousChild
      */
     public static function one(Element $parent, Name $name): Element
     {
@@ -62,7 +60,7 @@ final class Children
     }
 
     /**
-     * @throws AmbiguousChild when $parent has two or more children of that name
+     * @throws AmbiguousChild
      */
     public static function optional(Element $parent, Name $name): ?Element
     {
@@ -77,9 +75,6 @@ final class Children
         return $children[0] ?? null;
     }
 
-    /**
-     * The name a consumer asked for, never the input: in Clark notation when it has a namespace.
-     */
     private static function describe(Name $name): string
     {
         return $name->namespace === null ? $name->local : sprintf('{%s}%s', $name->namespace, $name->local);

@@ -30,10 +30,9 @@ use SensitiveParameter;
 use function rtrim;
 
 /**
- * Signing in the order of section 6.2: the document serialized and loaded again, so that what is hashed is what
- * the peer will parse (D-12); the element canonicalized without comments for the digest; a ds:Signature built with
- * a prefix on every element, inserted after the child the consumer names or first; SignedInfo canonicalized where
- * it stands and signed through the port; the loaded, signed Document returned, the one the consumer serializes.
+ * Section 6.2
+ *
+ * The document is serialized and loaded again first, so that what is hashed is what the peer will parse (D-12).
  */
 final readonly class Signer
 {
@@ -48,21 +47,18 @@ final readonly class Signer
     }
 
     /**
-     * The document, loaded again, with a ds:Signature over the element of ID $id inserted as its child, after the
-     * child named $after or as its first child.
+     * The document loaded again, with the ds:Signature inserted after the child named $after or first.
      *
-     * @param ?string $certificatePem when given, one PEM certificate (D-17), carried by a KeyInfo/X509Data/X509Certificate
-     *                                 for peers that want the hint
+     * @param ?string $certificatePem one PEM certificate, carried in the KeyInfo (D-17)
      *
-     * @throws InvalidKey when $certificatePem is not exactly one certificate (D-17)
-     * @throws AlgorithmUnavailable a PSS scheme on a build without PHP 8.5 and OpenSSL 3.1
-     * @throws UnknownId when the loaded document holds no element of that ID
-     * @throws MissingChild when $after names no child of the element
-     * @throws AmbiguousChild when $after names several
-     * @throws RefusedXml what Core's serializer and loader refuse of the document (core.md 6.5, 6.1)
-     * @throws Exception\SigningFailed when the primitive fails
-     * @throws InvalidArgumentException when $method is not exclusive (D-4), or the element already holds a ds:Signature
-     *                                   (D-1)
+     * @throws InvalidKey
+     * @throws AlgorithmUnavailable
+     * @throws UnknownId
+     * @throws MissingChild
+     * @throws AmbiguousChild
+     * @throws RefusedXml
+     * @throws Exception\SigningFailed
+     * @throws InvalidArgumentException when $method is not exclusive, or the element already holds a ds:Signature
      */
     public function sign(
         Document $document,
@@ -88,7 +84,7 @@ final readonly class Signer
             throw new InvalidArgumentException('The element already holds a ds:Signature, and a second one is what D-1 refuses (D-1).');
         }
         $before = $after instanceof Name ? Children::one($element, $after)->nextSibling : $element->firstChild;
-        // always without comments: the node-set of a same-document reference omits them (section 6.1 step 8)
+        // Without comments: the node-set of a same-document reference omits them (section 6.1 step 8).
         $digestValue = $digest->hash(
             $this->canonicalizer->canonicalize(
                 $element,
@@ -123,9 +119,8 @@ final readonly class Signer
     }
 
     /**
-     * The base64 of the one certificate $pem holds (D-17): exactly one PEM block of type CERTIFICATE, its content
-     * strict base64, nothing around it but whitespace, so that neither a private key nor a bundle nor a chain
-     * reaches the peer. The base64 is written again from the decoded bytes, on one line.
+     * Exactly one CERTIFICATE block, written again from its decoded bytes, so that neither a private key nor a
+     * bundle nor a chain reaches the peer (D-17).
      *
      * @throws InvalidKey
      */
@@ -140,7 +135,7 @@ final readonly class Signer
     }
 
     /**
-     * A prefixed ds:* element appended to its parent: the rule of core.md 6.5 for a built tree.
+     * Prefixed, by the rule of core.md section 6.5 for a built tree.
      */
     private function child(XMLDocument $xml, Element $parent, string $local): Element
     {

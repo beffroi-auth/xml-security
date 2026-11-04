@@ -11,17 +11,13 @@ use function preg_match;
 use function preg_replace;
 
 /**
- * One PEM block in memory, read strictly (E-11, E-14), as Dsig reads its own: exactly one block of the type asked,
- * its content strict base64, nothing around it but whitespace. What is anything else, a path OpenSSL would open or a
- * bundle among them, never reaches OpenSSL, which is handed the block written again from the decoded bytes.
+ * E-11, E-14: OpenSSL gets the block armoured again from the decoded bytes, never a path or a bundle it would open.
  *
  * @internal outside the compatibility promise of section 5
  */
 final readonly class Pem
 {
     /**
-     * The decoded bytes of the one block of $type that $pem is, or null.
-     *
      * @param 'CERTIFICATE'|'PUBLIC KEY' $type
      *
      * @return ?non-empty-string
@@ -44,8 +40,6 @@ final readonly class Pem
     }
 
     /**
-     * The block of $type around $bytes, in lines of 64 characters.
-     *
      * @param 'CERTIFICATE'|'PUBLIC KEY' $type
      */
     public static function armour(string $bytes, string $type): string

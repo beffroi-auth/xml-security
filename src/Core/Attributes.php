@@ -9,8 +9,7 @@ use Dom\Element;
 use function sprintf;
 
 /**
- * The attributes of an element by name (section 6.4), read with getAttributeNS(), which the Dom API makes return
- * null for an absent attribute and '' for an empty one.
+ * The Dom API's getAttributeNS() returns null for an absent attribute and '' for an empty one.
  */
 final class Attributes
 {

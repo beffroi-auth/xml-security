@@ -8,7 +8,7 @@ use Beffroi\Xml\Core\Document;
 use Beffroi\Xml\Enc\PlaintextReaderInterface;
 
 /**
- * The reading of Decryptor::decrypt(), which reads nothing: the plaintext as Core loaded it is what it answers (E-4).
+ * E-4
  *
  * @internal outside the compatibility promise of section 5
  *

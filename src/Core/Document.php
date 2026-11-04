@@ -12,15 +12,12 @@ use Dom\Element;
 use Dom\Node;
 use Dom\XMLDocument;
 
-/**
- * A document the brick loaded or created: its root, and the index of its IDs built at load (section 6.2).
- */
 final readonly class Document
 {
     /**
      * @internal constructed by Loader and DocumentFactory only
      *
-     * @param array<string, Element> $index the element of every registered ID value
+     * @param array<string, Element> $index keyed by ID value
      */
     public function __construct(
         private Element $root,
@@ -49,8 +46,6 @@ final readonly class Document
     }
 
     /**
-     * The document a node belongs to, if the brick loaded or created it.
-     *
      * @throws ForeignNode
      */
     public static function owning(Node $node): self

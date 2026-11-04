@@ -35,10 +35,9 @@ use function strcasecmp;
 use function strlen;
 
 /**
- * The rules of section 6.1, steps 5 and 6, on a parsed document: the document checks, then one iterative pass in
- * document order over every node, bounds, namespaces and the ID index. Several of these rules are a second layer
- * behind I-1 and I-3, which stop the same input before parsing or at parsing through Loader::load(); they are
- * reached here with documents parsed outside the loader.
+ * Section 6.1 steps 5 and 6
+ *
+ * Several rules are a second layer behind I-1 and I-3, reached only by documents parsed outside Loader::load().
  *
  * @internal outside the compatibility promise of section 5
  */
@@ -47,7 +46,7 @@ final readonly class Inspector
     private const string XMLNS = 'http://www.w3.org/2000/xmlns/';
 
     /**
-     * RFC 3986 §3.1: a scheme followed by a colon.
+     * RFC 3986 §3.1
      */
     private const string ABSOLUTE_URI = '~^[A-Za-z][A-Za-z0-9+.-]*:~';
 
@@ -77,7 +76,7 @@ final readonly class Inspector
     }
 
     /**
-     * @return array<string, Element> the element of every registered ID value
+     * @return array<string, Element> keyed by ID value
      *
      * @throws RefusedXml
      */
@@ -107,11 +106,10 @@ final readonly class Inspector
                 array_push($stack, ...self::childrenOf($node, $depth + 1));
                 continue;
             }
-            // text, CDATA, comment, processing instruction: inert, the byte bound covers them
+            // Character data is inert, and the byte bound covers it.
             if ($node instanceof CharacterData) {
                 continue;
             }
-            // an entity reference, a document type node: only a DTD produces them
             throw new DoctypeRefused(sprintf(
                 'The document contains a node only a DTD can produce, of type %d (I-1).',
                 $node->nodeType,
@@ -122,7 +120,7 @@ final readonly class Inspector
     }
 
     /**
-     * The children of a node, last first, so that popping the stack yields document order.
+     * Last first, so that popping the stack yields document order.
      *
      * @return list<array{Node, int}>
      */
@@ -172,8 +170,7 @@ final readonly class Inspector
     }
 
     /**
-     * I-6: every prefixed element or attribute has a namespace URI. The parser keeps a prefix it could not bind
-     * inside the local name, after a diagnostic that I-3 refuses first (section 13).
+     * I-6
      *
      * @throws NamespaceRefused
      */
@@ -185,7 +182,7 @@ final readonly class Inspector
     }
 
     /**
-     * I-6: an absolute URI, or the empty undeclaration of the default namespace.
+     * I-6
      *
      * @throws NamespaceRefused
      */
@@ -199,9 +196,6 @@ final readonly class Inspector
         }
     }
 
-    /**
-     * Whether the attribute is one the consumer registered, on an element it applies to (section 5.3).
-     */
     private function isRegistered(Attr $attribute, Element $element): bool
     {
         return array_any(
@@ -214,7 +208,7 @@ final readonly class Inspector
     }
 
     /**
-     * I-8: an NCName no longer than the bound, seen once.
+     * I-8
      *
      * @param array<string, Element> $index
      *

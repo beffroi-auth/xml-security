@@ -25,14 +25,12 @@ use function strlen;
 use function substr;
 
 /**
- * The one ds:Reference of a SignedInfo, read strictly (section 5.3): a same-document URI of "#" and an NCName
- * (D-2), the enveloped signature transform then an exclusive canonicalization and nothing else (D-3, D-4), a
- * digest method of the closed list (D-5), a digest value of exactly the digest's length (D-8, D-14).
+ * Section 5.3
  */
 final readonly class Reference
 {
     /**
-     * Section 7: the prefixes of a PrefixList.
+     * Section 7
      */
     public const int MAX_PREFIXES = 32;
 
@@ -46,10 +44,10 @@ final readonly class Reference
     }
 
     /**
-     * @throws MalformedSignature when the structure, a URI, a transform or a value is not what section 5.3 says
+     * @throws MalformedSignature
      * @throws Exception\UnknownDigestAlgorithm
      * @throws LimitExceeded
-     * @throws ForeignNode when $element is not of a document of the brick
+     * @throws ForeignNode
      */
     public static function of(Element $element): self
     {
@@ -87,7 +85,7 @@ final readonly class Reference
     }
 
     /**
-     * The enveloped signature transform then an exclusive canonicalization, in that order, nothing else (D-3).
+     * D-3
      *
      * @throws MalformedSignature
      * @throws LimitExceeded
@@ -114,9 +112,7 @@ final readonly class Reference
     }
 
     /**
-     * An element whose Algorithm is an exclusive canonicalization (D-4), with an optional InclusiveNamespaces child
-     * carrying a bounded PrefixList (D-14): the second transform of a reference, and the CanonicalizationMethod of
-     * a SignedInfo.
+     * D-4, D-14
      *
      * @param string $notExclusive the refusal when the algorithm is missing, unknown or not exclusive
      * @param string $otherChild the refusal when a child is not an InclusiveNamespaces

@@ -22,22 +22,20 @@ use function str_ends_with;
 use function strcasecmp;
 
 /**
- * The only place of the stack that calls saveXml() (I-15): the whole document, formatOutput false, an XML
- * declaration and UTF-8, whitespace text nodes kept. Nothing reformats a serialized document afterwards: a document
- * reformatted after signing is a document whose signature no longer verifies (section 6.5). What the serializer
- * lets out loads again as the canonical form that was signed: the four shapes that would not are refused first, and
- * so is what no parser accepts at all.
+ * Nothing reformats a serialized document: a document reformatted after signing no longer verifies (I-15).
  */
 final readonly class Serializer
 {
     private const string XMLNS = 'http://www.w3.org/2000/xmlns/';
 
-    /** A character outside the Char production of XML 1.0 §2.2. */
+    /**
+     * XML 1.0 §2.2
+     */
     private const string NOT_A_CHAR = '/[^\x{9}\x{A}\x{D}\x{20}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]/u';
 
     /**
-     * @throws SerializationFailed when the document holds a shape that would not survive saveXml() then a parser, or a shape no parser accepts (section 6.5), or when saveXml() returns false
-     * @throws ForeignNode when $document was not produced by Loader or DocumentFactory
+     * @throws SerializationFailed when the document would not survive saveXml() then a parser
+     * @throws ForeignNode
      */
     public function serialize(Document $document): string
     {
@@ -54,9 +52,7 @@ final readonly class Serializer
     }
 
     /**
-     * Section 6.5: saveXml() writes every character of a text, CDATA, comment or processing instruction node, of an
-     * attribute value and of a namespace name as it is, so one pass over its output sees each of them, as step 2
-     * of 6.1 does over the input.
+     * Section 6.5: saveXml() writes every character as it is, so one pass over its output sees each of them.
      *
      * @throws SerializationFailed
      */
@@ -72,15 +68,13 @@ final readonly class Serializer
     }
 
     /**
-     * Section 6.5: one iterative pass in document order over every node, the comments and processing instructions
-     * outside the root included, refusing the four shapes measured not to survive saveXml() then a parser and the
-     * comments and processing instructions no parser accepts.
+     * Section 6.5
      *
      * @throws SerializationFailed
      */
     private static function refuseWhatWouldNotRoundTrip(XMLDocument $xml): void
     {
-        /** @var list<array{Node, ?string}> $stack each node with the default namespace in force where it starts, as saveXml() computes it */
+        /** @var list<array{Node, ?string}> $stack */
         $stack = self::childrenOf($xml, null);
         while ($stack !== []) {
             [$node, $inherited] = array_pop($stack);
@@ -95,7 +89,7 @@ final readonly class Serializer
     }
 
     /**
-     * The children of a node, last first, so that popping the stack yields document order.
+     * Last first, so that popping the stack yields document order.
      *
      * @return list<array{Node, ?string}>
      */
@@ -110,13 +104,11 @@ final readonly class Serializer
     }
 
     /**
-     * An element whose prefix is bound to the URI of the default namespace in force where it starts is written
-     * without its prefix by the namespace fix-up of saveXml(), which changes its canonical form; a namespace name
-     * holding an ampersand is not written faithfully.
+     * saveXml() writes without its prefix an element whose prefix is bound to the default namespace in force, which
+     * changes its canonical form, and does not write an ampersand in a namespace name faithfully.
      *
      * @throws SerializationFailed
-     * @return ?string the default namespace in force for the children, as saveXml() computes it: the element's own
-     *                 xmlns attribute, else its own namespace when it has no prefix, else the inherited one
+     * @return ?string the default namespace in force for the children, as saveXml() computes it
      */
     private static function inspectElement(Element $element, ?string $inherited): ?string
     {
@@ -131,7 +123,7 @@ final readonly class Serializer
                 continue;
             }
             self::refuseAmpersand($attribute->value);
-            // xmlns itself has no prefix; xmlns:p has the prefix xmlns
+            // The declaration xmlns has no prefix; xmlns:p has the prefix xmlns.
             if ($attribute->prefix === null) {
                 $default = $attribute->value === '' ? null : $attribute->value;
             }
@@ -141,10 +133,7 @@ final readonly class Serializer
     }
 
     /**
-     * A carriage return is written as the byte itself and normalised to a line feed by the parser of the peer
-     * (XML 1.0 §2.11); a CDATA section holding the sequence that ends one, which the parser produces by merging
-     * adjacent sections, is written as it is, into bytes no parser accepts; so are a comment and a processing
-     * instruction their productions forbid (XML 1.0 §2.5 and §2.6).
+     * XML 1.0 §2.5, §2.6, §2.11
      *
      * @throws SerializationFailed
      */

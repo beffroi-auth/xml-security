@@ -29,9 +29,7 @@ use function str_starts_with;
 use function strlen;
 
 /**
- * Loading, in the order of section 6.1: the byte bound before anything reads the input, the bytes, the DOCTYPE, the
- * parse under fixed flags with libxml's state saved and restored, then the document checks and the traversal of
- * Internal\Inspector. The only place of the stack that parses XML (I-4).
+ * Section 6.1
  */
 final readonly class Loader
 {
@@ -45,8 +43,7 @@ final readonly class Loader
     }
 
     /**
-     * Takes bytes, never a path or a stream: reading a file or a request body is the caller's business. The bytes
-     * are a SensitiveParameter: a decrypted plaintext stays out of the traces of its refusal.
+     * The bytes are a SensitiveParameter: a decrypted plaintext stays out of the traces of its refusal.
      *
      * @throws RefusedXml
      */
@@ -64,7 +61,7 @@ final readonly class Loader
         if (preg_match('//u', $bytes) !== 1) {
             throw new EncodingRefused('The input is not valid UTF-8 (I-5).');
         }
-        // wherever the sequence sits, a comment or a CDATA section included: the false positive is accepted (6.1)
+        // Wherever it sits, in a comment or a CDATA section too: the false positive is accepted (section 6.1).
         if (str_contains($bytes, '<!DOCTYPE')) {
             throw new DoctypeRefused('The input contains a document type declaration (I-1).');
         }
@@ -77,7 +74,7 @@ final readonly class Loader
     }
 
     /**
-     * I-2, I-3: fixed flags, every diagnostic a refusal, libxml's global state saved and restored whatever happens.
+     * I-2, I-3
      *
      * @throws MalformedXml|ParserDiagnostic
      */
@@ -87,7 +84,7 @@ final readonly class Loader
         libxml_clear_errors();
         try {
             try {
-                // LIBXML_NO_XXE exists from libxml 2.13: on the builds of section 13 it is undefined and adds nothing
+                // LIBXML_NO_XXE exists from libxml 2.13 only: the builds of section 13 do not define it.
                 $document = XMLDocument::createFromString(
                     $bytes,
                     LIBXML_NONET | (defined('LIBXML_NO_XXE') ? LIBXML_NO_XXE : 0),
@@ -112,7 +109,7 @@ final readonly class Loader
     }
 
     /**
-     * I-16: the code, the level, the line and the column, never libxml's message, which quotes the input.
+     * Never libxml's message, which quotes the input (I-16).
      */
     private function describe(string $what, ?LibXMLError $error): string
     {

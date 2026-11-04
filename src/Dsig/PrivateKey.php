@@ -18,9 +18,7 @@ use SensitiveParameter;
 use function str_starts_with;
 
 /**
- * A signing key on a PEM in memory, for the tests and for a consumer whose key is a file the deployment gives it
- * (section 5.2): RSA of at least 2048 bits (D-16). The one openssl_sign() and the one openssl_pkey_get_private()
- * of the namespace live here (D-15). It exposes nothing of the key.
+ * It exposes nothing of the key.
  */
 final readonly class PrivateKey implements SigningKeyInterface
 {
@@ -30,8 +28,7 @@ final readonly class PrivateKey implements SigningKeyInterface
     }
 
     /**
-     * @throws InvalidKey when the PEM holds no private key, the passphrase is wrong, or the key is not RSA of at
-     *                    least 2048 bits
+     * @throws InvalidKey
      */
     public static function fromPem(
         #[SensitiveParameter]
@@ -40,12 +37,12 @@ final readonly class PrivateKey implements SigningKeyInterface
         ?string $passphrase = null,
     ): self {
         // OpenSSL opens a string that starts with file:// as a path, and asks the terminal for the passphrase of an
-        // encrypted PEM given none: the key is the PEM in memory, and a missing passphrase is the empty one
+        // encrypted PEM given none.
         if (str_starts_with($pem, 'file://')) {
             throw new InvalidKey('The PEM holds no private key, or the passphrase is wrong (D-16).');
         }
         $handle = openssl_pkey_get_private($pem, $passphrase ?? '');
-        // openssl leaves its diagnostics in a queue whatever the outcome; nothing of the stack reads them (D-13)
+        // OpenSSL leaves its diagnostics in a queue whatever the outcome; nothing of the stack reads them (D-13).
 
         if ($handle === false) {
             throw new InvalidKey('The PEM holds no private key, or the passphrase is wrong (D-16).');
@@ -63,12 +60,11 @@ final readonly class PrivateKey implements SigningKeyInterface
         if (! $algorithm->isAvailable()) {
             throw new AlgorithmUnavailable('This build cannot produce RSASSA-PSS: it needs PHP 8.5 and OpenSSL 3.1 (section 13).');
         }
-        // the padding parameter exists on PHP 8.5 only, and isAvailable() was checked (section 13)
+        // The padding parameter exists on PHP 8.5 only, and isAvailable() was checked (section 13).
         $padding = $algorithm->isPss() ? [constant('OPENSSL_PKCS1_PSS_PADDING')] : [];
         $signature = null;
         openssl_sign($bytes, $signature, $this->handle, $algorithm->digest()->opensslAlgorithm(), ...$padding);
 
-        // openssl_sign() fills $signature or leaves it null: a key the constructor accepted never reaches the null
         if (! is_string($signature)) {
             throw new SigningFailed('OpenSSL could not sign the canonical SignedInfo (section 6.2).');
         }

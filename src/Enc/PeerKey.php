@@ -20,16 +20,12 @@ use function preg_replace;
 use SensitiveParameter;
 
 /**
- * The encryption certificate of the peer's metadata (section 5.2): the certificate's PEM, the base64 of its DER as
- * an X509Certificate element carries it, or a PEM public key. RSA of at least 2048 bits (E-11). It holds an
- * OpenSSLAsymmetricKey and nothing else, and exposes neither the PEM nor the modulus; the one
- * openssl_public_encrypt() and the one openssl_pkey_get_public() of the namespace live here (E-10). Whether the
- * certificate is expired, revoked or trusted is the business of the metadata layer, which decided to pass the key.
+ * Section 5.2, E-10, E-11: expiry, revocation and trust are left to the metadata layer that passed the key.
  */
 final readonly class PeerKey
 {
     /**
-     * Section 7, E-11: what the interoperability targets encrypt to, and the floor of the profiles.
+     * Section 7, E-11
      */
     public const int MIN_BITS = 2048;
 
@@ -39,8 +35,7 @@ final readonly class PeerKey
     }
 
     /**
-     * @throws InvalidKey unless $pem is exactly one PEM block of type CERTIFICATE (E-11), or when the key of the
-     *                    certificate is not RSA of at least 2048 bits
+     * @throws InvalidKey
      */
     public static function fromCertificatePem(string $pem): self
     {
@@ -53,8 +48,7 @@ final readonly class PeerKey
     }
 
     /**
-     * The content of an X509Certificate element: the base64 of the DER, whitespace tolerated. openssl reads the
-     * certificate once it is wrapped in the PEM armour and refuses the bare base64 (dsig.md, section 13).
+     * OpenSSL refuses the bare base64 of a DER, so the certificate is read once armoured as a PEM.
      *
      * @throws InvalidKey
      */
@@ -69,8 +63,7 @@ final readonly class PeerKey
     }
 
     /**
-     * @throws InvalidKey unless $pem is exactly one PEM block of type PUBLIC KEY (E-11), or when the key is not RSA
-     *                    of at least 2048 bits
+     * @throws InvalidKey
      */
     public static function fromPublicKeyPem(string $pem): self
     {
@@ -83,25 +76,23 @@ final readonly class PeerKey
     }
 
     /**
-     * The session key wrapped under RSA-OAEP with $hash for the mask and for MGF1 (section 6.2 step 5).
+     * Section 6.2 step 5
      *
-     * @internal for Encryptor only: the one openssl_public_encrypt() of the namespace (E-10)
+     * @internal for Encryptor only (E-10)
      *
-     * @throws AlgorithmUnavailable when this build cannot wrap under $hash
-     * @throws EncryptionFailed when the primitive fails: never input
+     * @throws AlgorithmUnavailable
+     * @throws EncryptionFailed
      */
     public function wrap(#[SensitiveParameter] string $sessionKey, OaepHash $hash): string
     {
         if (! $hash->isAvailable()) {
             throw new AlgorithmUnavailable('This build cannot wrap under a hash other than SHA-1: the RSA functions take no digest before PHP 8.5 (section 13).');
         }
-        // the digest parameter exists on PHP 8.5 only, and isAvailable() was checked: SHA-1 leaves the default in
-        // place, whatever the build (section 13)
+        // The digest parameter exists from PHP 8.5 only: SHA-1 passes none and keeps the default on every build.
         $digest = $hash === OaepHash::Sha1 ? [] : [$hash->openssl()];
         $wrapped = null;
         openssl_public_encrypt($sessionKey, $wrapped, $this->handle, OPENSSL_PKCS1_OAEP_PADDING, ...$digest);
 
-        // openssl_public_encrypt() fills $wrapped or leaves it null: a key the constructor accepted never reaches the null
         if (! is_string($wrapped)) {
             throw new EncryptionFailed('OpenSSL could not wrap the session key (section 6.2).');
         }
@@ -110,14 +101,14 @@ final readonly class PeerKey
     }
 
     /**
-     * @param string $pem one block the factories wrote themselves, never the consumer's string (E-11)
+     * @param string $pem a block the factories wrote themselves, never the consumer's string (E-11)
      *
      * @throws InvalidKey
      */
     private static function fromPublic(string $pem): self
     {
         $handle = openssl_pkey_get_public($pem);
-        // openssl leaves its diagnostics in a queue whatever the outcome; nothing of the stack reads them (E-12)
+        // OpenSSL's error queue is left as is: nothing of the stack reads it (E-12).
 
         if ($handle === false) {
             throw new InvalidKey('The PEM holds no certificate and no public key (E-11).');

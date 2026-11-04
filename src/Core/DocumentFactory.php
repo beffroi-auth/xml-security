@@ -8,10 +8,8 @@ use Beffroi\Xml\Core\Internal\Registry;
 use Dom\XMLDocument;
 
 /**
- * The only place of the stack that calls createEmpty() (section 6.5): a new XML 1.0, UTF-8 document whose root is
- * created with createElementNS() and registered, so that the brick recognises what a consumer builds under it. The
- * namespace of the root is declared on it as an attribute: C14N() renders the declarations that exist as
- * attributes, and a default namespace given to createElementNS() alone is invisible to it (measured, section 13).
+ * The namespace of the root is declared on it as an attribute: C14N() does not see a default namespace given to
+ * createElementNS() alone (section 13).
  */
 final readonly class DocumentFactory
 {

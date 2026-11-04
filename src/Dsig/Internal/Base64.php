@@ -12,22 +12,20 @@ use function sprintf;
 use function strlen;
 
 /**
- * The base64 of a SignatureValue or a DigestValue, decoded strictly after whitespace removal (D-8), the text bounded
- * before anything is decoded (D-14). XML Signature writes base64 with line breaks every 76 characters; a character
- * outside the alphabet, padding out of place, or an empty value is a refusal, never a byte skipped.
+ * Decoded strictly after whitespace removal: a character outside the alphabet is refused, never skipped (D-8).
  *
  * @internal outside the compatibility promise of section 5
  */
 final readonly class Base64
 {
     /**
-     * Section 7: the text of a base64 value, whitespace included, before decoding.
+     * Section 7: whitespace included.
      */
     public const int MAX_TEXT_BYTES = 4096;
 
     /**
-     * @throws LimitExceeded when the text is longer than MAX_TEXT_BYTES
-     * @throws MalformedSignature when the text holds a character outside the alphabet or is empty
+     * @throws LimitExceeded
+     * @throws MalformedSignature
      */
     public static function decode(string $text): string
     {

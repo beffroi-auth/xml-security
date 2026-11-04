@@ -30,18 +30,10 @@ use function rtrim;
 use SensitiveParameter;
 
 /**
- * Encryption in the order of section 6.2: the availability of the hash, the element canonicalized with comments so
- * that the plaintext carries every declaration it uses (E-9), a fresh session key and IV (E-8), the content under
- * AES-GCM, the session key wrapped to the peer under RSA-OAEP, and a xenc:EncryptedData built with a prefix on
- * every element, in the document of the element, returned unattached for the consumer to place. The one
- * openssl_encrypt() call of the namespace lives here (E-10).
+ * Section 6.2, E-8, E-9, E-10
  */
 final readonly class Encryptor
 {
-    /**
-     * @param Loader $loader the consumer's, with its ID attributes and limits: it loads the plaintext once before it is
-     *                       encrypted (E-9)
-     */
     public function __construct(
         private Loader $loader,
         private Canonicalizer $canonicalizer = new Canonicalizer(),
@@ -49,21 +41,15 @@ final readonly class Encryptor
     }
 
     /**
-     * A new xenc:EncryptedData element, built in the document of $element and returned unattached, holding the
-     * exclusive canonical form with comments of $element, every prefix in scope rendered (E-9), under a fresh session
-     * key and IV, the key under RSA-OAEP to $peer. The consumer puts it where its protocol says and removes the
-     * plaintext element itself.
+     * Returns the xenc:EncryptedData unattached: the consumer places it and removes the plaintext element itself.
      *
-     * @param ?string $certificatePem when given, one PEM certificate (E-14), carried by the KeyInfo of the EncryptedKey
-     *                                for peers that want the hint
-     *
-     * @throws InvalidKey when $certificatePem is not exactly one certificate (E-14)
-     * @throws RefusedXml what Core's loader refuses of the plaintext, which no peer would parse either (E-9)
-     * @throws AlgorithmUnavailable a hash this build cannot wrap under
+     * @throws InvalidKey when $certificatePem is not exactly one certificate
+     * @throws RefusedXml what the loader refuses of the plaintext
+     * @throws AlgorithmUnavailable
      * @throws InvalidArgumentException when $element is not connected to its document, or an element of its
-     *                                  subtree without a prefix has no declaration in scope (core.md 6.3)
-     * @throws EncryptionFailed when a primitive fails: never input
-     * @throws ForeignNode when $element is not of a document of the brick
+     *                                  subtree without a prefix has no declaration in scope
+     * @throws EncryptionFailed
+     * @throws ForeignNode
      */
     public function encrypt(
         Element $element,
@@ -89,7 +75,7 @@ final readonly class Encryptor
             CanonicalizationMethod::ExclusiveWithComments,
             $this->prefixesInScope($element),
         )->bytes;
-        // what no parser accepts, a namespace name C14N() wrote raw among it, is refused here and not by the peer
+        // What no parser accepts, a namespace name C14N() wrote raw, is refused here and not by the peer.
         $this->loader->load($plaintext);
         $sessionKey = random_bytes($algorithm->keyBytes());
         $iv = random_bytes(ContentAlgorithm::IV_BYTES);
@@ -104,8 +90,6 @@ final readonly class Encryptor
             '',
             ContentAlgorithm::TAG_BYTES,
         );
-        // openssl_encrypt() gives the ciphertext and fills the tag: a key of the length the cipher takes never
-        // reaches the false
         if ($ciphertext === false) {
             throw new EncryptionFailed('OpenSSL could not encrypt the element (section 6.2).');
         }
@@ -154,9 +138,7 @@ final readonly class Encryptor
     }
 
     /**
-     * Every prefix in scope on $element, #default for a default namespace, for the PrefixList of the exclusive
-     * canonical form: the declarations a QName value such as xsi:type="xs:string" needs are rendered too, which the
-     * exclusive form alone leaves out (E-9).
+     * Every prefix in scope, #default included: exclusive C14N alone omits declarations a QName value needs (E-9).
      */
     private function prefixesInScope(Element $element): InclusiveNamespaces
     {
@@ -169,7 +151,7 @@ final readonly class Encryptor
     }
 
     /**
-     * A prefixed element appended to its parent: the rule of core.md 6.5 for a built tree.
+     * core.md section 6.5
      */
     private function child(XMLDocument $xml, Element $parent, string $namespace, string $qualified): Element
     {
@@ -180,8 +162,7 @@ final readonly class Encryptor
     }
 
     /**
-     * A CipherData holding the one CipherValue of $bytes, base64 with a line break every 76 characters, as the
-     * interoperability targets write it (section 6.2 step 6).
+     * Base64 in lines of 76 characters, as the interoperability targets write it (section 6.2 step 6).
      */
     private function cipherData(XMLDocument $xml, Element $parent, string $bytes): void
     {

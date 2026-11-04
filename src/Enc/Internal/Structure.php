@@ -14,16 +14,13 @@ use function count;
 use Dom\Element;
 
 /**
- * The structure of section 5.3 read strictly (E-5): direct children only, through Core's Children, counted, and
- * every child that is not one of the names allowed refused. Nothing is searched.
+ * The structure of section 5.3, read strictly on direct children only (E-5): nothing is searched.
  *
  * @internal outside the compatibility promise of section 5
  */
 final readonly class Structure
 {
     /**
-     * Every element child of $element is one of $allowed.
-     *
      * @param list<Name> $allowed
      *
      * @throws MalformedEncryption
@@ -38,9 +35,7 @@ final readonly class Structure
     }
 
     /**
-     * Exactly one child named $name.
-     *
-     * @throws MalformedEncryption when there is none or more than one
+     * @throws MalformedEncryption
      */
     public static function one(Element $element, Name $name, string $message): Element
     {
@@ -53,9 +48,7 @@ final readonly class Structure
     }
 
     /**
-     * At most one child named $name.
-     *
-     * @throws MalformedEncryption when there is more than one
+     * @throws MalformedEncryption
      */
     public static function optional(Element $element, Name $name, string $message): ?Element
     {
@@ -68,8 +61,6 @@ final readonly class Structure
     }
 
     /**
-     * No element child at all.
-     *
      * @throws MalformedEncryption
      */
     public static function none(Element $element, string $message): void
@@ -80,8 +71,7 @@ final readonly class Structure
     }
 
     /**
-     * The text of $element through Core's Text::of() (E-5), an element child refused under the rule of the namespace
-     * rather than Core's MixedContent: nothing was decrypted, so the refusal is the model's (section 5.3).
+     * Nothing was decrypted yet, so an element child is the model's MalformedEncryption, not Core's MixedContent.
      *
      * @throws MalformedEncryption
      */

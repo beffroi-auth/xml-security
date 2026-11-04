@@ -18,15 +18,12 @@ use SensitiveParameter;
 use function str_starts_with;
 
 /**
- * A decryption key on a PEM in memory, for the tests and for a consumer whose key is a file the deployment gives it
- * (section 5.2): RSA of at least 2048 bits (E-11). The one openssl_private_decrypt() and the one
- * openssl_pkey_get_private() of the namespace live here (E-10). It exposes nothing of the key, and answers null for
- * whatever does not unwrap, never why (E-3).
+ * Section 5.2, E-3, E-10, E-11
  */
 final readonly class PrivateDecryptionKey implements DecryptionKeyInterface
 {
     /**
-     * Section 7, E-11: what the interoperability targets encrypt to, and the floor of the profiles.
+     * Section 7, E-11
      */
     public const int MIN_BITS = 2048;
 
@@ -36,8 +33,7 @@ final readonly class PrivateDecryptionKey implements DecryptionKeyInterface
     }
 
     /**
-     * @throws InvalidKey when the PEM holds no private key, the passphrase is wrong, or the key is not RSA of at
-     *                    least 2048 bits
+     * @throws InvalidKey
      */
     public static function fromPem(
         #[SensitiveParameter]
@@ -45,13 +41,12 @@ final readonly class PrivateDecryptionKey implements DecryptionKeyInterface
         #[SensitiveParameter]
         ?string $passphrase = null,
     ): self {
-        // OpenSSL opens a string that starts with file:// as a path, and asks the terminal for the passphrase of an
-        // encrypted PEM given none: the key is the PEM in memory, and a missing passphrase is the empty one
+        // OpenSSL opens a file:// string as a path and prompts the terminal for a missing passphrase.
         if (str_starts_with($pem, 'file://')) {
             throw new InvalidKey('The PEM holds no private key, or the passphrase is wrong (E-11).');
         }
         $handle = openssl_pkey_get_private($pem, $passphrase ?? '');
-        // openssl leaves its diagnostics in a queue whatever the outcome; nothing of the stack reads them (E-12)
+        // OpenSSL's error queue is left as is: nothing of the stack reads it (E-12).
 
         if ($handle === false) {
             throw new InvalidKey('The PEM holds no private key, or the passphrase is wrong (E-11).');
@@ -69,18 +64,15 @@ final readonly class PrivateDecryptionKey implements DecryptionKeyInterface
         if (! $hash->isAvailable()) {
             throw new AlgorithmUnavailable('This build cannot unwrap under a hash other than SHA-1: the RSA functions take no digest before PHP 8.5 (section 13).');
         }
-        // the digest parameter exists on PHP 8.5 only, and isAvailable() was checked: SHA-1 leaves the default in
-        // place, whatever the build (section 13)
+        // The digest parameter exists from PHP 8.5 only: SHA-1 passes none and keeps the default on every build.
         $digest = $hash === OaepHash::Sha1 ? [] : [$hash->openssl()];
         $sessionKey = null;
         openssl_private_decrypt($wrapped, $sessionKey, $this->handle, OPENSSL_PKCS1_OAEP_PADDING, ...$digest);
-        // an OAEP decoding error left in OpenSSL's queue would tell whoever reads openssl_error_string() which step
-        // failed: the queue is emptied, one error per call, whatever the outcome (section 6.1 step 4, E-3)
+        // An OAEP error left in OpenSSL's queue would tell which step failed, so the queue is drained (E-3).
         do {
             $error = openssl_error_string();
         } while ($error !== false);
 
-        // a blob that does not unwrap leaves $sessionKey null: the one answer, whatever OpenSSL knows of why (E-3)
         return is_string($sessionKey) ? $sessionKey : null;
     }
 }

@@ -14,15 +14,13 @@ use OpenSSLAsymmetricKey;
 use function preg_replace;
 
 /**
- * A public key the consumer trusts, taken from the peer's metadata (D-7): the certificate's PEM, the base64 of
- * its DER as an X509Certificate element carries it, or a PEM public key. RSA of at least 2048 bits (D-16). It holds
- * an OpenSSLAsymmetricKey and nothing else, and exposes neither the PEM nor the modulus. Whether the certificate is
- * expired, revoked or trusted is the business of the metadata layer, which decided to pass the key.
+ * Whether the certificate is expired, revoked or trusted is the business of the metadata layer, which decided to
+ * pass the key.
  */
 final readonly class VerificationKey
 {
     /**
-     * Section 7, D-16: what the interoperability targets sign with, and the floor of the profiles.
+     * Section 7, D-16
      */
     public const int MIN_BITS = 2048;
 
@@ -32,8 +30,7 @@ final readonly class VerificationKey
     }
 
     /**
-     * @throws InvalidKey unless $pem is exactly one PEM block of type CERTIFICATE (D-16), or when the key of the
-     *                    certificate is not RSA of at least 2048 bits
+     * @throws InvalidKey
      */
     public static function fromCertificatePem(string $pem): self
     {
@@ -46,8 +43,7 @@ final readonly class VerificationKey
     }
 
     /**
-     * The content of an X509Certificate element: the base64 of the DER, whitespace tolerated. openssl reads the
-     * certificate once it is wrapped in the PEM armour and refuses the bare base64 (measured, section 13).
+     * OpenSSL refuses the bare base64 and reads the certificate once it is wrapped in the PEM armour (section 13).
      *
      * @throws InvalidKey
      */
@@ -62,8 +58,7 @@ final readonly class VerificationKey
     }
 
     /**
-     * @throws InvalidKey unless $pem is exactly one PEM block of type PUBLIC KEY (D-16), or when the key is not RSA
-     *                    of at least 2048 bits
+     * @throws InvalidKey
      */
     public static function fromPublicKeyPem(string $pem): self
     {
@@ -76,7 +71,7 @@ final readonly class VerificationKey
     }
 
     /**
-     * @internal for Verifier only: the handle openssl_verify() takes (D-15)
+     * @internal for Verifier only
      */
     public function handle(): OpenSSLAsymmetricKey
     {
@@ -91,7 +86,7 @@ final readonly class VerificationKey
     private static function fromPublic(string $pem): self
     {
         $handle = openssl_pkey_get_public($pem);
-        // openssl leaves its diagnostics in a queue whatever the outcome; nothing of the stack reads them (D-13)
+        // OpenSSL leaves its diagnostics in a queue whatever the outcome; nothing of the stack reads them (D-13).
 
         if ($handle === false) {
             throw new InvalidKey('The PEM holds no certificate and no public key (D-16).');

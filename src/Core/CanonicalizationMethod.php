@@ -7,9 +7,7 @@ namespace Beffroi\Xml\Core;
 use Beffroi\Xml\Core\Exception\UnknownCanonicalizationMethod;
 
 /**
- * The four methods Canonical XML 1.0 and Exclusive XML Canonicalization 1.0 define and PHP's C14N() can express: an
- * exclusive flag and a comments flag (section 5.4). Canonical XML 1.1 is not reachable from PHP and is refused
- * like any unknown URI.
+ * Canonical XML 1.1 is refused like any unknown URI: PHP's C14N() cannot express it.
  */
 enum CanonicalizationMethod: string
 {

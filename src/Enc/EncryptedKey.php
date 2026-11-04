@@ -16,22 +16,19 @@ use function sprintf;
 use function strlen;
 
 /**
- * The xenc:EncryptedKey inside the KeyInfo of an EncryptedData, read strictly (section 5.3, E-5): an
- * EncryptionMethod of the closed list (E-1), an optional KeyInfo that is never read (E-6), a CipherData holding a
- * CipherValue whose decoded length is that of an RSA key transport (E-13); ReferenceList, CarriedKeyName and
- * everything else refused.
+ * Section 5.3, E-5
  */
 final readonly class EncryptedKey
 {
     /**
-     * Section 7: the decoded cipher value, from an RSA-2048 transport to an RSA-8192 one.
+     * Section 7: the decoded cipher value of an RSA-2048 transport.
      */
     public const int MIN_CIPHER_BYTES = 256;
 
     public const int MAX_CIPHER_BYTES = 1024;
 
     /**
-     * Section 7: the text of the cipher value before decoding, far above the 1 368 characters of 1 024 bytes.
+     * Section 7
      */
     public const int MAX_TEXT_BYTES = 4096;
 
@@ -43,11 +40,10 @@ final readonly class EncryptedKey
     }
 
     /**
-     * @throws MalformedEncryption when the element is not an xenc:EncryptedKey, or the structure, a child or a base64
-     *                             text is not what section 5.3 says
+     * @throws MalformedEncryption
      * @throws Exception\UnknownKeyTransport
      * @throws LimitExceeded
-     * @throws ForeignNode when $element is not of a document of the brick
+     * @throws ForeignNode
      */
     public static function of(Element $element): self
     {
@@ -63,7 +59,7 @@ final readonly class EncryptedKey
             [$encryptionMethod, $keyInfo, $cipherData],
             'An EncryptedKey holds a child other than EncryptionMethod, KeyInfo and CipherData (E-5).',
         );
-        // the recipient's hint: counted, never read (E-6)
+        // The recipient's hint is counted, never read (E-6).
         Structure::optional($element, $keyInfo, 'An EncryptedKey holds at most one KeyInfo (E-5).');
         $transport = KeyTransport::of(
             Structure::one($element, $encryptionMethod, 'An EncryptedKey holds exactly one EncryptionMethod (E-5).'),

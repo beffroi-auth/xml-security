@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Beffroi\Xml\Core;
 
 /**
- * The ID attributes a consumer registers (section 5.3). Their values form one space per document (I-8).
+ * The values of the registered attributes form one space per document (I-8).
  */
 final readonly class IdAttributes
 {

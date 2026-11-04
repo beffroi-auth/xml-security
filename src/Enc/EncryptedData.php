@@ -17,23 +17,17 @@ use Dom\Element;
 use function strlen;
 
 /**
- * The xenc:EncryptedData element read strictly (section 5.3, E-5), nothing decrypted: a Type of Element, an
- * EncryptionMethod of the closed lists with no child, AES-GCM or AES-CBC (E-1), a KeyInfo holding exactly one
- * EncryptedKey, a CipherData holding a CipherValue long enough for an IV, a byte of ciphertext and a tag under AES-GCM,
- * an IV and whole blocks under AES-CBC (E-2); CipherReference, EncryptionProperties and everything else refused. A
- * consumer may read an encrypted element without decrypting it; only Decryptor decrypts, and AES-CBC only under a
- * signature that covers it (E-15).
+ * Section 5.3, E-5
  */
 final readonly class EncryptedData
 {
     /**
-     * E-2: an IV, at least one byte of ciphertext, and a tag.
+     * E-2
      */
     public const int MIN_CIPHER_BYTES = ContentAlgorithm::IV_BYTES + 1 + ContentAlgorithm::TAG_BYTES;
 
     /**
-     * @param string $cipherValue decoded: the IV, the ciphertext and the tag, in that order, under AES-GCM (XML
-     *                            Encryption 1.1 §5.2.4); the IV and the ciphertext under AES-CBC (§5.2.2)
+     * @param string $cipherValue decoded: the IV, the ciphertext, then the tag under AES-GCM
      */
     public function __construct(
         public Element $element,
@@ -44,12 +38,11 @@ final readonly class EncryptedData
     }
 
     /**
-     * @throws MalformedEncryption when the structure, the Type, a child, a base64 text or a length is not what
-     *                             section 5.3 says
+     * @throws MalformedEncryption
      * @throws Exception\UnknownContentAlgorithm
      * @throws Exception\UnknownKeyTransport
      * @throws LimitExceeded
-     * @throws ForeignNode when $element is not of a document of the brick
+     * @throws ForeignNode
      */
     public static function of(Element $element): self
     {
@@ -106,8 +99,6 @@ final readonly class EncryptedData
     }
 
     /**
-     * The one EncryptedKey the KeyInfo holds, the form SimpleSAMLphp's library and xmlsec1 produce (section 5.3).
-     *
      * @throws MalformedEncryption
      * @throws Exception\UnknownKeyTransport
      * @throws LimitExceeded

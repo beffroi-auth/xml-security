@@ -9,16 +9,13 @@ use Beffroi\Xml\Enc\Exception\MalformedEncryption;
 use Dom\Element;
 
 /**
- * The CipherData of an EncryptedData or of an EncryptedKey (E-5): exactly one CipherValue, decoded strictly (E-7),
- * and never a CipherReference, which would send the decryptor to fetch its ciphertext somewhere else.
+ * E-5, E-7: never a CipherReference, which would send the decryptor to fetch its ciphertext elsewhere.
  *
  * @internal outside the compatibility promise of section 5
  */
 final readonly class CipherData
 {
     /**
-     * The decoded bytes of the one CipherValue, its text bounded by $maxTextBytes, the constant $bound names.
-     *
      * @param positive-int $maxTextBytes
      *
      * @throws MalformedEncryption

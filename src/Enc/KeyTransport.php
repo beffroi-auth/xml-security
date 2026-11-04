@@ -14,49 +14,38 @@ use Beffroi\Xml\Enc\Internal\Structure;
 use Dom\Element;
 
 /**
- * RSA-OAEP with one hash for the OAEP mask and for MGF1 (E-1), the one key transport family the namespace reads
- * and writes: rsa-oaep-mgf1p of XML Encryption 1.0, SHA-1 by definition, and rsa-oaep of XML Encryption 1.1, whose
- * DigestMethod and MGF must name the same hash since the digest parameter of PHP's RSA functions sets both
- * (specification, section 13). PKCS#1 v1.5, key wrapping and key agreement are refused by name, before anything is
- * decoded: a peer that accepts the old next to the new is broken as if it accepted only the old.
+ * E-1: the DigestMethod and the MGF of an rsa-oaep must name one hash, the digest parameter of PHP's RSA
+ * functions setting both.
  */
 final readonly class KeyTransport
 {
     /**
-     * XML Encryption 1.0 §5.4.2: RSAES-OAEP with SHA-1 for the hash and for MGF1.
+     * XML Encryption 1.0 §5.4.2
      */
     public const string RSA_OAEP_MGF1P = 'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p';
 
     /**
-     * XML Encryption 1.1 §5.5.2: RSAES-OAEP whose DigestMethod and MGF name the hash, SHA-1 when absent.
+     * XML Encryption 1.1 §5.5.2
      */
     public const string RSA_OAEP = 'http://www.w3.org/2009/xmlenc11#rsa-oaep';
 
-    /**
-     * @param OaepHash $hash for the OAEP mask and for MGF1 alike
-     */
     public function __construct(
         public OaepHash $hash,
     ) {
     }
 
-    /**
-     * SHA-1, what every interoperability target produces and accepts.
-     */
     public static function mgf1p(): self
     {
         return new self(OaepHash::Sha1);
     }
 
     /**
-     * The EncryptionMethod of an EncryptedKey, read strictly (section 6.1 step 2): rsa-oaep-mgf1p with an optional
-     * DigestMethod of SHA-1, the one hash MGF1 uses under that name and the child Shibboleth and ADFS write, or
-     * rsa-oaep with an optional DigestMethod and an optional MGF naming the same hash, SHA-1 when absent.
+     * Section 6.1 step 2: rsa-oaep-mgf1p takes an optional DigestMethod of SHA-1, as Shibboleth and ADFS write one.
      *
      * @throws UnknownKeyTransport for every other Algorithm, and when the hashes differ
      * @throws MalformedEncryption for an element that is not an xenc:EncryptionMethod, an OAEPparams, an MGF under
      *                             rsa-oaep-mgf1p, or any other child
-     * @throws ForeignNode when $encryptionMethod is not of a document of the brick
+     * @throws ForeignNode
      */
     public static function of(Element $encryptionMethod): self
     {
@@ -76,10 +65,6 @@ final readonly class KeyTransport
         };
     }
 
-    /**
-     * The URI written into an EncryptionMethod: rsa-oaep-mgf1p for SHA-1, rsa-oaep with a DigestMethod and an MGF
-     * otherwise.
-     */
     public function uri(): string
     {
         return $this->hash === OaepHash::Sha1 ? self::RSA_OAEP_MGF1P : self::RSA_OAEP;
@@ -144,8 +129,6 @@ final readonly class KeyTransport
     }
 
     /**
-     * The Algorithm a DigestMethod or an MGF names, the element holding no child.
-     *
      * @throws MalformedEncryption
      */
     private static function algorithmOf(Element $element): string

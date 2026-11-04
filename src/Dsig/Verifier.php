@@ -28,11 +28,9 @@ use function sprintf;
 use function strlen;
 
 /**
- * Verification in the order of section 6.1: the Signature as the direct child of the claimed element (D-1), the
- * reading model and its whitelists (D-3, D-4, D-5, D-9), SignedInfo canonicalized and its signature verified
- * against the trusted keys (D-7, D-8), and only then the reference resolved by identity (D-2) and the digest of
- * the element computed with the Signature excluded (D-6). The result is the reload of the bytes that were hashed
- * (D-10). The one openssl_verify() call of the namespace lives here (D-15).
+ * Section 6.1
+ *
+ * The signature over SignedInfo is verified before the reference is resolved and the digest computed.
  */
 final readonly class Verifier
 {
@@ -46,11 +44,11 @@ final readonly class Verifier
     }
 
     /**
-     * @param Element $signed the element the consumer claims is signed: the Signature is its direct child (D-1)
+     * @param Element $signed the element the consumer claims is signed, the Signature its direct child (D-1)
      *
-     * @throws Exception\SignatureRefused one of its subclasses, naming the rule (D-13)
-     * @throws ForeignNode when $signed is not of a document of the brick
-     * @throws RefusedXml what Core refuses of the reload (D-10)
+     * @throws Exception\SignatureRefused
+     * @throws ForeignNode
+     * @throws RefusedXml
      */
     public function verify(Element $signed, VerificationKeys $keys): Verified
     {
@@ -75,8 +73,8 @@ final readonly class Verifier
         if (! $document->hasId($reference->id) || $document->elementById($reference->id) !== $signed) {
             throw new WrongReference('The reference does not name the claimed element (D-2).');
         }
-        // always without comments: the node-set a same-document reference identifies omits them (XML Signature 1.1
-        // §4.4.3.3), whatever the transform says (section 6.1 step 8)
+        // Without comments whatever the transform says: the node-set a same-document reference identifies
+        // omits them (XML Signature 1.1 §4.4.3.3).
         $canonical = $this->canonicalizer->canonicalize(
             $signed,
             CanonicalizationMethod::Exclusive,
@@ -91,16 +89,13 @@ final readonly class Verifier
     }
 
     /**
-     * The trusted key under which $signature is a signature of $bytes, for the one signature of the stack that is not
-     * XML Signature (section 6.4): the query string of the HTTP-Redirect binding, which saml2-bindings builds in the
-     * exact order of its parameters. The rules are those of verify(): the closed list of schemes (D-5), the keys of
-     * the peer's metadata (D-7), openssl_verify() compared to 1 (D-8), the length bounded (D-14).
+     * Section 6.4
      *
-     * @param string $signature the signature, decoded
+     * @param string $signature decoded
      *
-     * @throws AlgorithmUnavailable a PSS scheme on a build that cannot verify it
-     * @throws LimitExceeded when $signature is not between 256 and maxSignatureValueBytes bytes
-     * @throws SignatureMismatch when no trusted key verifies it
+     * @throws AlgorithmUnavailable
+     * @throws LimitExceeded
+     * @throws SignatureMismatch
      */
     public function verifyDetached(
         string $bytes,
@@ -129,8 +124,7 @@ final readonly class Verifier
     }
 
     /**
-     * The first trusted key under which openssl_verify() returns 1 (D-8); 0, -1 and false on every key is a
-     * mismatch, and nothing about which key came close is kept (D-13).
+     * Only a 1 from openssl_verify() verifies; 0, -1 and false on every key are a mismatch (D-8).
      *
      * @throws SignatureMismatch
      */
@@ -142,8 +136,7 @@ final readonly class Verifier
         string $mismatch = 'No trusted key verifies the signature over SignedInfo (D-7, D-8).',
     ): VerificationKey {
         $digest = $algorithm->digest()->opensslAlgorithm();
-        // the padding parameter exists on PHP 8.5 only, and isAvailable() was checked: a PSS scheme passes it,
-        // a PKCS#1 v1.5 scheme leaves the default in place, whatever the build
+        // The padding parameter exists on PHP 8.5 only, and isAvailable() was checked (section 13).
         $padding = $algorithm->isPss() ? [constant('OPENSSL_PKCS1_PSS_PADDING')] : [];
         foreach ($keys->keys as $key) {
             if (openssl_verify($bytes, $signatureValue, $key->handle(), $digest, ...$padding) === 1) {

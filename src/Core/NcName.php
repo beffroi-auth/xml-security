@@ -7,8 +7,7 @@ namespace Beffroi\Xml\Core;
 use function preg_match;
 
 /**
- * Namespaces in XML 1.0 §3, production NCName, over the character classes of XML 1.0 fifth edition §2.3: what an
- * ID is (I-8), and what a reference of Dsig names after its "#" (spec/dsig.md D-2).
+ * Namespaces in XML 1.0 §3, XML 1.0 fifth edition §2.3
  */
 final readonly class NcName
 {

@@ -8,10 +8,7 @@ use Beffroi\Xml\Dsig\Exception\UnknownSignatureAlgorithm;
 use function defined;
 
 /**
- * The closed list of signature methods (D-5): the RSA schemes of XML Signature 1.1 §6.4.2 and RFC 6931 §2.3,
- * PKCS#1 v1.5 and RSASSA-PSS with MGF1 and a salt of the digest's length. SHA-1, HMAC, DSA, ECDSA and every
- * unknown URI are refused by fromUri() before anything is decoded or computed. A case added is a decision of the
- * specification, never a mapping in a consumer.
+ * D-5, XML Signature 1.1 §6.4.2, RFC 6931 §2.3
  */
 enum SignatureAlgorithm: string
 {
@@ -23,7 +20,7 @@ enum SignatureAlgorithm: string
     case RsaPssSha512 = 'http://www.w3.org/2007/05/xmldsig-more#sha512-rsa-MGF1';
 
     /**
-     * @throws UnknownSignatureAlgorithm for every other URI
+     * @throws UnknownSignatureAlgorithm
      */
     public static function fromUri(string $uri): self
     {
@@ -32,9 +29,6 @@ enum SignatureAlgorithm: string
         );
     }
 
-    /**
-     * The hash of the scheme.
-     */
     public function digest(): DigestAlgorithm
     {
         return match ($this) {
@@ -53,8 +47,8 @@ enum SignatureAlgorithm: string
     }
 
     /**
-     * False for a PSS scheme unless the build has PHP 8.5, which defines OPENSSL_PKCS1_PSS_PADDING, and OpenSSL 3.1,
-     * whose default salt is the digest's length: PHP passes no salt length (specification, section 13).
+     * PSS needs PHP 8.5, which defines OPENSSL_PKCS1_PSS_PADDING, and OpenSSL 3.1, whose default salt is the
+     * digest's length: PHP passes no salt length (section 13).
      */
     public function isAvailable(): bool
     {

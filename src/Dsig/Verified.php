@@ -8,10 +8,8 @@ use Beffroi\Xml\Core\CanonicalXml;
 use Beffroi\Xml\Core\Document;
 
 /**
- * What a verification hands to the consumer (D-10): the Document its Loader built from the very bytes the digest
- * matched, one root, the signed element without its Signature, no sibling, no ancestor, no wrapper; the bytes
- * themselves; the algorithm; the trusted key that verified. The consumer reads $document->root() and nothing of
- * the element it passed in.
+ * The consumer reads $document->root(), the reload of the hashed bytes, and nothing of the element it passed in
+ * (D-10).
  */
 final readonly class Verified
 {

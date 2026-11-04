@@ -14,16 +14,13 @@ use function count;
 use Dom\Element;
 
 /**
- * The structure of section 5.3 read strictly (D-9): direct children only, through Core's Children, counted, and
- * every child that is not one of the names allowed refused. Nothing is searched.
+ * D-9
  *
  * @internal outside the compatibility promise of section 5
  */
 final readonly class Structure
 {
     /**
-     * Every element child of $element is one of $allowed.
-     *
      * @param list<Name> $allowed
      *
      * @throws MalformedSignature
@@ -38,9 +35,7 @@ final readonly class Structure
     }
 
     /**
-     * Exactly one child named $name.
-     *
-     * @throws MalformedSignature when there is none or more than one
+     * @throws MalformedSignature
      */
     public static function one(Element $element, Name $name, string $message): Element
     {
@@ -53,9 +48,7 @@ final readonly class Structure
     }
 
     /**
-     * At most one child named $name.
-     *
-     * @throws MalformedSignature when there is more than one
+     * @throws MalformedSignature
      */
     public static function optional(Element $element, Name $name, string $message): ?Element
     {
@@ -68,8 +61,6 @@ final readonly class Structure
     }
 
     /**
-     * No element child at all.
-     *
      * @throws MalformedSignature
      */
     public static function none(Element $element, string $message): void
@@ -80,8 +71,8 @@ final readonly class Structure
     }
 
     /**
-     * The text of $element through Core's Text::of() (D-9), an element child refused under the rule of the namespace
-     * rather than Core's MixedContent, so that the model throws nothing but a SignatureRefused.
+     * An element child is refused as MalformedSignature rather than Core's MixedContent, so that the model throws
+     * nothing but a SignatureRefused.
      *
      * @throws MalformedSignature
      */
