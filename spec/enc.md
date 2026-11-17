@@ -9,7 +9,7 @@ The `Enc` namespace of `xml-security`, XML Encryption on the safe DOM of `Core`:
 | Namespace | `Beffroi\Xml\Enc`, on `Beffroi\Xml\Core`, never on `Beffroi\Xml\Dsig`; this document is the law of `Enc` alone |
 | Runtime | PHP 8.4 or later, `ext-openssl` and what `Core` requires. RSA-OAEP with a hash other than SHA-1 needs PHP 8.5 (section 13). Nothing else is called from `Enc`. |
 | Consumers | `saml2-model`; outside the stack, any XML Encryption profile whose plaintext is a whole element and whose key travels under RSA-OAEP |
-| Design | Sub-spike 8e of [spike 8](https://github.com/beffroi-auth/design/blob/main/spikes/08-saml/README.md), [decision 0013](https://github.com/beffroi-auth/design/blob/main/docs/decisions/0013-saml-formats-xml-ecrits-ici.md) (the invariants of `xml-enc`) and [decision 0014](https://github.com/beffroi-auth/design/blob/main/docs/decisions/0014-xml-security-un-seul-paquet.md) (one package) |
+| Design | Sub-spike 8e of spike 8, decision 0013 (the invariants of `xml-enc`) and decision 0014 (one package) |
 
 This document states what the namespace does, what it refuses and what it guarantees; the code conforms to it, or the document changes first. Section 4 lists the invariants every test enforces, each with the attack class it closes, section 5 the public API, section 6 the order of decryption and of encryption, section 9 the corpus that proves them.
 
